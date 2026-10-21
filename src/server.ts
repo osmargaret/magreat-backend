@@ -632,6 +632,53 @@ app.post('/api/saved-meals/:id/remind', (req: Request, res: Response) => {
   res.json(result);
 });
 
+app.post('/api/saved-meals/bulk-remind', (req: Request, res: Response) => {
+  const { ids } = req.body;
+  const list = storage.getSavedMeals();
+  let dispatched = 0;
+  const results: any[] = [];
+
+  list.forEach(item => {
+    if (!ids || ids.length === 0 || ids.includes(item.id)) {
+      if (item.reminderStatus !== 'Unsubscribed') {
+        item.lastReminderSentAt = new Date().toISOString();
+        item.reminderCount = (item.reminderCount || 0) + 1;
+        dispatched++;
+        results.push({ id: item.id, name: item.customerName, email: item.customerEmail });
+      }
+    }
+  });
+
+  storage.saveSavedMeals(list);
+  res.json({
+    success: true,
+    dispatchedCount: dispatched,
+    message: `Successfully dispatched dinner reminders to ${dispatched} customer(s)!`,
+    subscribers: results
+  });
+});
+
+app.patch('/api/saved-meals/:id/status', (req: Request, res: Response) => {
+  const { status } = req.body;
+  const list = storage.getSavedMeals();
+  const item = list.find(r => r.id === req.params.id);
+  if (!item) return res.status(404).json({ error: 'Record not found' });
+  item.reminderStatus = status || (item.reminderStatus === 'Active' ? 'Unsubscribed' : 'Active');
+  storage.saveSavedMeals(list);
+  res.json(item);
+});
+
+app.post('/api/catering/:id/quote', (req: Request, res: Response) => {
+  const { quoteAmount, menuNotes } = req.body;
+  const updated = storage.updateCateringStatus(String(req.params.id), 'Quote sent');
+  res.json({
+    success: true,
+    message: `Quotation of ₦${(Number(quoteAmount) || 0).toLocaleString()} sent to client!`,
+    lead: updated,
+    menuNotes
+  });
+});
+
 // ==========================================
 // 10. DYNAMIC BUSINESS ANALYTICS
 // ==========================================
