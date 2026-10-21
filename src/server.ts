@@ -1,9 +1,20 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
+import { v2 as cloudinary } from 'cloudinary';
 import { storage } from './storage.js';
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Configure Cloudinary with user credentials
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'p2pa6dfi',
+  api_key: process.env.CLOUDINARY_API_KEY || '683855118821861',
+  api_secret: process.env.CLOUDINARY_API_SECRET || 'HYHymAzBXMKxkL8WqiINNokxHDI'
+});
 
 // Enable CORS for frontend and admin apps
 app.use(
@@ -14,7 +25,9 @@ app.use(
   })
 );
 
-app.use(express.json());
+// Increased limit for base64 image uploads
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ limit: '25mb', extended: true }));
 
 // Request logger
 app.use((req, res, next) => {
@@ -31,8 +44,38 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.json({
     status: 'ok',
     service: 'Ma’Great Taste API',
+    cloudinaryConfigured: true,
     timestamp: new Date().toISOString()
   });
+});
+
+// ==========================================
+// IMAGE UPLOAD (CLOUDINARY)
+// ==========================================
+app.post('/api/upload', async (req: Request, res: Response) => {
+  try {
+    const { image, folder } = req.body;
+    if (!image) {
+      return res.status(400).json({ error: 'Image file or base64 string is required' });
+    }
+
+    const uploadResult = await cloudinary.uploader.upload(image, {
+      folder: folder || 'magreat_taste',
+      resource_type: 'auto'
+    });
+
+    res.json({
+      success: true,
+      url: uploadResult.secure_url,
+      public_id: uploadResult.public_id,
+      format: uploadResult.format,
+      width: uploadResult.width,
+      height: uploadResult.height
+    });
+  } catch (err: any) {
+    console.error('Cloudinary upload error:', err);
+    res.status(500).json({ error: err.message || 'Image upload to Cloudinary failed' });
+  }
 });
 
 // ==========================================
