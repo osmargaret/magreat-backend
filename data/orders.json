@@ -64,10 +64,10 @@
     "paymentMethod": "card",
     "paymentStatus": "paid",
     "paymentReference": "PAY-CARD-99128",
-    "status": "New",
+    "status": "Delivered",
     "estimatedDeliveryTime": "35–45 min",
     "createdAt": "2026-10-21T06:59:13.429Z",
-    "updatedAt": "2026-10-21T06:59:13.429Z"
+    "updatedAt": "2026-10-21T15:47:53.845Z"
   },
   {
     "id": "MGT-1047",

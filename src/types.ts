@@ -123,3 +123,25 @@ export interface NewsletterSubscriber {
   email: string;
   subscribedAt: string;
 }
+
+export interface SavedMealItem {
+  foodId: number;
+  name: string;
+  price: number;
+  image: string;
+  category: string;
+  savedAt: string;
+}
+
+export interface CustomerSavedMeals {
+  id: string; // e.g. SM-101
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  items: SavedMealItem[];
+  reminderStatus: 'Active' | 'Unsubscribed';
+  lastReminderSentAt?: string;
+  reminderCount: number;
+  createdAt: string;
+  updatedAt: string;
+}

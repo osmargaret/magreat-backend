@@ -9,7 +9,9 @@ import type {
   MealPlanOrder,
   CustomerMessage,
   NewsletterSubscriber,
-  OrderStatus
+  OrderStatus,
+  CustomerSavedMeals,
+  SavedMealItem
 } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -480,6 +482,58 @@ const defaultMessages: CustomerMessage[] = [
   }
 ];
 
+const defaultSavedMeals: CustomerSavedMeals[] = [
+  {
+    id: 'SM-101',
+    customerName: 'Sarah Adeleke',
+    customerEmail: 'sarah.adeleke@gmail.com',
+    customerPhone: '0803 456 7890',
+    items: [
+      {
+        foodId: 1,
+        name: 'Smoky Party Jollof & Grilled Chicken',
+        price: 6500,
+        image: 'https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?auto=format&fit=crop&w=900&q=85',
+        category: 'Nigerian',
+        savedAt: new Date(Date.now() - 4 * 3600 * 1000).toISOString()
+      },
+      {
+        foodId: 4,
+        name: 'Designer Ayamase (Special Ofada Pepper Stew)',
+        price: 7800,
+        image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=900&q=85',
+        category: 'Nigerian',
+        savedAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString()
+      }
+    ],
+    reminderStatus: 'Active',
+    reminderCount: 1,
+    lastReminderSentAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString()
+  },
+  {
+    id: 'SM-102',
+    customerName: 'Kelechi Nwosu',
+    customerEmail: 'kelechi.nwosu@yahoo.com',
+    customerPhone: '0812 345 6789',
+    items: [
+      {
+        foodId: 7,
+        name: 'Rich Egusi Soup with Goat Meat & Pounded Yam',
+        price: 7500,
+        image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=900&q=85',
+        category: 'Nigerian',
+        savedAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString()
+      }
+    ],
+    reminderStatus: 'Active',
+    reminderCount: 0,
+    createdAt: new Date(Date.now() - 10 * 3600 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString()
+  }
+];
+
 export const storage = {
   // Foods
   getFoods(): FoodItem[] {
@@ -756,6 +810,74 @@ export const storage = {
       unreadMessages: messages.filter(m => m.unread).length,
       topFoods,
       categoryCounts
+    };
+  },
+
+  // Saved Meals & Reminders
+  getSavedMeals(): CustomerSavedMeals[] {
+    return readJsonFile<CustomerSavedMeals[]>('saved-meals.json', defaultSavedMeals);
+  },
+  saveSavedMeals(list: CustomerSavedMeals[]): void {
+    writeJsonFile('saved-meals.json', list);
+  },
+  addOrUpdateCustomerSavedMeals(data: {
+    customerName: string;
+    customerEmail: string;
+    customerPhone?: string;
+    items: SavedMealItem[];
+  }): { record: CustomerSavedMeals; isNew: boolean; reminderPreview: string } {
+    const list = this.getSavedMeals();
+    const existingIndex = list.findIndex(r => r.customerEmail.toLowerCase() === data.customerEmail.toLowerCase());
+    
+    const mealNames = data.items.map(i => i.name).join(', ');
+    const reminderPreview = `Dear ${data.customerName || 'Food Lover'}, you saved ${mealNames} at Ma’Great Taste. Ready to treat yourself today? We're cooking fresh now!`;
+
+    if (existingIndex >= 0) {
+      list[existingIndex] = {
+        ...list[existingIndex],
+        customerName: data.customerName || list[existingIndex].customerName,
+        customerPhone: data.customerPhone || list[existingIndex].customerPhone,
+        items: data.items,
+        updatedAt: new Date().toISOString()
+      };
+      this.saveSavedMeals(list);
+      return { record: list[existingIndex], isNew: false, reminderPreview };
+    } else {
+      const newRecord: CustomerSavedMeals = {
+        id: `SM-${Math.floor(100 + Math.random() * 900)}`,
+        customerName: data.customerName,
+        customerEmail: data.customerEmail,
+        customerPhone: data.customerPhone,
+        items: data.items,
+        reminderStatus: 'Active',
+        reminderCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      list.unshift(newRecord);
+      this.saveSavedMeals(list);
+      return { record: newRecord, isNew: true, reminderPreview };
+    }
+  },
+  sendSavedMealReminder(id: string): { success: boolean; message: string; record?: CustomerSavedMeals; reminderText?: string } {
+    const list = this.getSavedMeals();
+    const item = list.find(r => r.id === id);
+    if (!item) {
+      return { success: false, message: 'Saved meal record not found' };
+    }
+    const mealNames = item.items.map(i => i.name).slice(0, 3).join(', ');
+    const dateFormatted = new Date(item.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const reminderText = `Dear ${item.customerName}, you saved ${mealNames} on ${dateFormatted} at Ma’Great Taste! We have a hot pot on the fire ready for you today. Order now for 25-minute fast delivery.`;
+    
+    item.lastReminderSentAt = new Date().toISOString();
+    item.reminderCount = (item.reminderCount || 0) + 1;
+    this.saveSavedMeals(list);
+
+    return {
+      success: true,
+      message: `Reminder sent to ${item.customerEmail}!`,
+      record: item,
+      reminderText
     };
   }
 };

@@ -3,10 +3,15 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import https from 'node:https';
 import dns from 'node:dns';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { v2 as cloudinary } from 'cloudinary';
 import { storage } from './storage.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Create resilient DNS resolver agent for Cloudinary API on Windows
 const dnsResolver = new dns.Resolver();
@@ -53,6 +58,10 @@ app.use(
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ limit: '25mb', extended: true }));
 
+// Serve static meal images and uploads
+app.use('/meals', express.static(path.resolve(__dirname, '../uploads/meals')));
+app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
+
 // Request logger
 app.use((req, res, next) => {
   const start = Date.now();
@@ -63,7 +72,25 @@ app.use((req, res, next) => {
   next();
 });
 
-// --- Health Check ---
+// --- Root & Health Check ---
+app.get('/', (req: Request, res: Response) => {
+  res.json({
+    status: 'online',
+    service: 'Ma’Great Taste API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      menu: '/api/menu',
+      orders: '/api/orders',
+      catering: '/api/catering',
+      mealPlans: '/api/meal-plans',
+      messages: '/api/messages',
+      savedMeals: '/api/saved-meals',
+      analytics: '/api/analytics'
+    }
+  });
+});
+
 app.get('/api/health', (req: Request, res: Response) => {
   res.json({
     status: 'ok',
@@ -521,7 +548,42 @@ app.post('/api/newsletter', (req: Request, res: Response) => {
 });
 
 // ==========================================
-// 9. DYNAMIC BUSINESS ANALYTICS
+// 9. SAVED MEALS & DINNER REMINDERS
+// ==========================================
+app.get('/api/saved-meals', (req: Request, res: Response) => {
+  const savedMeals = storage.getSavedMeals();
+  res.json(savedMeals);
+});
+
+app.post('/api/saved-meals', (req: Request, res: Response) => {
+  const { customerName, customerEmail, customerPhone, items } = req.body;
+  if (!customerEmail || !items || !Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'Customer email and at least one saved meal item are required' });
+  }
+
+  const result = storage.addOrUpdateCustomerSavedMeals({
+    customerName: customerName || 'Food Lover',
+    customerEmail,
+    customerPhone,
+    items
+  });
+
+  res.status(201).json({
+    message: `Your saved meals list has been saved and sent to ${customerEmail}! We'll send you timely dinner reminders.`,
+    ...result
+  });
+});
+
+app.post('/api/saved-meals/:id/remind', (req: Request, res: Response) => {
+  const result = storage.sendSavedMealReminder(String(req.params.id));
+  if (!result.success) {
+    return res.status(404).json({ error: result.message });
+  }
+  res.json(result);
+});
+
+// ==========================================
+// 10. DYNAMIC BUSINESS ANALYTICS
 // ==========================================
 app.get('/api/analytics', (req: Request, res: Response) => {
   const analytics = storage.getAnalytics();

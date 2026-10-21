@@ -1,0 +1,45 @@
+[
+  {
+    "id": "CAT-201",
+    "customerName": "Nneka Eze",
+    "customerEmail": "nneka.eze@gmail.com",
+    "customerPhone": "+234 802 334 5567",
+    "eventType": "Birthday Dinner",
+    "eventDate": "2026-11-08",
+    "guestCount": 60,
+    "location": "Lekki Phase 1, Lagos",
+    "budget": "₦600,000 - ₦800,000",
+    "dietaryRequirements": "Halal options required, 5 vegetarians",
+    "notes": "Looking for a plated 3-course dinner with jollof, grilled fish and continental dessert.",
+    "status": "Quote sent",
+    "createdAt": "2026-10-19T15:39:10.462Z"
+  },
+  {
+    "id": "CAT-202",
+    "customerName": "Kelechi Opara (Northstar Ltd)",
+    "customerEmail": "kelechi@northstar.ng",
+    "customerPhone": "+234 803 777 9901",
+    "eventType": "Corporate Lunch Subscription",
+    "eventDate": "2026-11-02",
+    "guestCount": 25,
+    "location": "Victoria Island, Lagos",
+    "budget": "₦450,000 / week",
+    "notes": "Daily boxed lunches for engineering team Monday to Friday.",
+    "status": "Pending",
+    "createdAt": "2026-10-21T10:39:10.462Z"
+  },
+  {
+    "id": "CAT-203",
+    "customerName": "Olu & Tobi Adeleke",
+    "customerEmail": "olu.tobi2026@gmail.com",
+    "customerPhone": "+234 818 901 2345",
+    "eventType": "Wedding Reception",
+    "eventDate": "2026-12-12",
+    "guestCount": 180,
+    "location": "Ikeja GRA, Lagos",
+    "budget": "₦1,800,000 - ₦2,200,000",
+    "notes": "Full buffet spread: Nigerian traditional swallows, party jollof, small chops and cocktail bar.",
+    "status": "Confirmed",
+    "createdAt": "2026-10-15T15:39:10.462Z"
+  }
+]
