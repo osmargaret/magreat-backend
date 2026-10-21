@@ -145,3 +145,17 @@ export interface CustomerSavedMeals {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface CustomerDiscount {
+  id: string;
+  customerEmail?: string;
+  customerName?: string;
+  companyName?: string;
+  type: 'percent' | 'fixed';
+  value: number; // e.g. 15 for 15%, 5000 for 5000 NGN
+  code: string; // e.g. NORTHSTAR-15, VIP-ADAEZE
+  appliesTo: 'individual' | 'company' | 'all';
+  notes?: string;
+  active: boolean;
+  createdAt: string;
+}

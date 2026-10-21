@@ -441,35 +441,85 @@ app.patch('/api/catering/:id/status', (req: Request, res: Response) => {
 // 6. MEAL PLANS & FREEZER STOCKING
 // ==========================================
 app.get('/api/mealplans/packages', (req: Request, res: Response) => {
-  res.json([
-    {
-      id: 'weekly-essentials',
-      name: 'Weekly Essentials',
-      meals: '10 meals',
-      price: 45000,
-      description: 'Ideal for busy professionals who want wholesome dinners throughout the working week.',
-      features: ['5 main rice & pasta dishes', '2 traditional soup bowls', 'Freezer-safe portioned containers', 'Storage & reheating guide'],
-      color: 'mint'
-    },
-    {
-      id: 'family-freezer',
-      name: 'Family Freezer Pack',
-      meals: '20 meals',
-      price: 85000,
-      description: 'Generous family-sized portions ready to defrost and enjoy anytime.',
-      features: ['Family-sized portions', 'Choice of 4 hearty soups & stews', 'Smoky jollof & fried rice tubs', 'Freezer-ready vacuum seal'],
-      color: 'peach'
-    },
-    {
-      id: 'monthly-stockup',
-      name: 'Monthly Stock-Up Plan',
-      meals: '40 meals',
-      price: 165000,
-      description: 'Complete peace of mind. We stock your freezer with fresh rotations every week.',
-      features: ['4 weekly fresh deliveries', 'Fully customisable menu selection', 'Priority delivery slots', 'Complimentary chef seasonal treats'],
-      color: 'lavender'
-    }
-  ]);
+  const packages = storage.getMealPackages();
+  res.json(packages);
+});
+
+app.post('/api/mealplans/packages', (req: Request, res: Response) => {
+  const { name, meals, price, description, features, color } = req.body;
+  if (!name || !price) {
+    return res.status(400).json({ error: 'Name and price are required' });
+  }
+  const created = storage.createMealPackage({
+    name,
+    meals: meals || '10 meals',
+    price: Number(price),
+    description: description || 'Signature meal subscription package.',
+    features: Array.isArray(features) ? features : (features ? [features] : ['Custom chef dishes', 'Freezer-safe packaging']),
+    color: color || 'mint'
+  });
+  res.status(201).json(created);
+});
+
+app.put('/api/mealplans/packages/:id', (req: Request, res: Response) => {
+  const updated = storage.updateMealPackage(String(req.params.id), req.body);
+  if (!updated) {
+    return res.status(404).json({ error: 'Meal package not found' });
+  }
+  res.json(updated);
+});
+
+app.delete('/api/mealplans/packages/:id', (req: Request, res: Response) => {
+  const deleted = storage.deleteMealPackage(String(req.params.id));
+  if (!deleted) {
+    return res.status(404).json({ error: 'Meal package not found' });
+  }
+  res.json({ message: 'Meal package deleted successfully' });
+});
+
+// ==========================================
+// 6B. CUSTOMER & COMPANY DISCOUNTS
+// ==========================================
+app.get('/api/discounts', (req: Request, res: Response) => {
+  const list = storage.getDiscounts();
+  res.json(list);
+});
+
+app.post('/api/discounts', (req: Request, res: Response) => {
+  const { customerName, customerEmail, companyName, type, value, code, appliesTo, notes, id } = req.body;
+  if (!value || !code) {
+    return res.status(400).json({ error: 'Discount value and promo code are required' });
+  }
+  const result = storage.createOrUpdateDiscount({
+    id,
+    customerName,
+    customerEmail,
+    companyName,
+    type: type || 'percent',
+    value: Number(value),
+    code: String(code).trim().toUpperCase(),
+    appliesTo: appliesTo || (companyName ? 'company' : 'individual'),
+    notes: notes || '',
+    active: true
+  });
+  res.status(201).json(result);
+});
+
+app.delete('/api/discounts/:id', (req: Request, res: Response) => {
+  const success = storage.deleteDiscount(String(req.params.id));
+  if (!success) {
+    return res.status(404).json({ error: 'Discount not found' });
+  }
+  res.json({ message: 'Discount deleted successfully' });
+});
+
+app.post('/api/discounts/validate', (req: Request, res: Response) => {
+  const { code, email } = req.body;
+  const result = storage.validateDiscount(code, email);
+  if (!result.valid) {
+    return res.status(400).json({ valid: false, error: result.message });
+  }
+  res.json(result);
 });
 
 app.post('/api/mealplans/order', (req: Request, res: Response) => {

@@ -30,9 +30,9 @@
     "paymentReference": "MGT-TRF-580822",
     "estimatedDeliveryTime": "30–45 mins",
     "id": "MGT-2116",
-    "status": "Preparing",
+    "status": "Delivered",
     "createdAt": "2026-10-21T08:21:22.246Z",
-    "updatedAt": "2026-10-21T08:56:35.647Z"
+    "updatedAt": "2026-10-21T19:15:43.699Z"
   },
   {
     "id": "MGT-1048",
@@ -67,7 +67,7 @@
     "status": "Delivered",
     "estimatedDeliveryTime": "35–45 min",
     "createdAt": "2026-10-21T06:59:13.429Z",
-    "updatedAt": "2026-10-21T15:47:53.845Z"
+    "updatedAt": "2026-10-21T19:15:44.834Z"
   },
   {
     "id": "MGT-1047",

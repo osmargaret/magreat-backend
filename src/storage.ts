@@ -11,7 +11,9 @@ import type {
   NewsletterSubscriber,
   OrderStatus,
   CustomerSavedMeals,
-  SavedMealItem
+  SavedMealItem,
+  MealPlanPackage,
+  CustomerDiscount
 } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -879,5 +881,154 @@ export const storage = {
       record: item,
       reminderText
     };
+  },
+
+  // ==========================================
+  // MEAL PLAN PACKAGES CRUD
+  // ==========================================
+  getMealPackages(): MealPlanPackage[] {
+    const defaultPkgs: MealPlanPackage[] = [
+      {
+        id: 'weekly-essentials',
+        name: 'Weekly Essentials',
+        meals: '10 meals',
+        price: 45000,
+        description: 'Ideal for busy professionals who want wholesome dinners throughout the working week.',
+        features: ['5 main dishes', '2 soup options', 'Packed & labelled', 'Reheating guide'],
+        color: 'mint'
+      },
+      {
+        id: 'family-freezer',
+        name: 'Family Freezer Pack',
+        meals: '20 meals',
+        price: 85000,
+        description: 'Generous family-sized portions ready to defrost and enjoy anytime.',
+        features: ['Family-sized portions', 'Mix of soups & rice', 'Freezer-ready packaging', 'Weekend deliveries'],
+        color: 'peach'
+      },
+      {
+        id: 'monthly-stockup',
+        name: 'Monthly Stock-Up',
+        meals: '40 meals',
+        price: 165000,
+        description: 'Complete peace of mind. We stock your freezer with fresh rotations every week.',
+        features: ['4 weekly deliveries', 'Customisable menu', 'Priority delivery slots', 'Complimentary seasonal treat'],
+        color: 'lavender'
+      }
+    ];
+    return readJsonFile<MealPlanPackage[]>('meal-packages.json', defaultPkgs);
+  },
+  saveMealPackages(list: MealPlanPackage[]): void {
+    writeJsonFile('meal-packages.json', list);
+  },
+  createMealPackage(data: Omit<MealPlanPackage, 'id'>): MealPlanPackage {
+    const list = this.getMealPackages();
+    const newPkg: MealPlanPackage = {
+      ...data,
+      id: `plan-${Date.now()}`
+    };
+    list.push(newPkg);
+    this.saveMealPackages(list);
+    return newPkg;
+  },
+  updateMealPackage(id: string, data: Partial<MealPlanPackage>): MealPlanPackage | null {
+    const list = this.getMealPackages();
+    const idx = list.findIndex(p => p.id === id);
+    if (idx === -1) return null;
+    list[idx] = { ...list[idx], ...data };
+    this.saveMealPackages(list);
+    return list[idx];
+  },
+  deleteMealPackage(id: string): boolean {
+    const list = this.getMealPackages();
+    const filtered = list.filter(p => p.id !== id);
+    if (filtered.length === list.length) return false;
+    this.saveMealPackages(filtered);
+    return true;
+  },
+
+  // ==========================================
+  // CUSTOMER & COMPANY DISCOUNTS
+  // ==========================================
+  getDiscounts(): CustomerDiscount[] {
+    const defaultDiscs: CustomerDiscount[] = [
+      {
+        id: 'DISC-01',
+        customerName: 'David Akinola',
+        customerEmail: 'david@northstar.ng',
+        companyName: 'Northstar Energy Ltd',
+        type: 'percent',
+        value: 15,
+        code: 'NORTHSTAR-15',
+        appliesTo: 'company',
+        notes: 'Corporate catering contract 15% discount for all team members',
+        active: true,
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'DISC-02',
+        customerName: 'Adaeze Okafor',
+        customerEmail: 'adaeze@example.com',
+        type: 'percent',
+        value: 10,
+        code: 'VIP-ADAEZE10',
+        appliesTo: 'individual',
+        notes: 'Loyal VIP customer 10% discount on every order',
+        active: true,
+        createdAt: new Date().toISOString()
+      }
+    ];
+    return readJsonFile<CustomerDiscount[]>('discounts.json', defaultDiscs);
+  },
+  saveDiscounts(list: CustomerDiscount[]): void {
+    writeJsonFile('discounts.json', list);
+  },
+  createOrUpdateDiscount(data: Omit<CustomerDiscount, 'id' | 'createdAt'> & { id?: string }): CustomerDiscount {
+    const list = this.getDiscounts();
+    if (data.id) {
+      const idx = list.findIndex(d => d.id === data.id);
+      if (idx !== -1) {
+        list[idx] = { ...list[idx], ...data, active: data.active ?? true };
+        this.saveDiscounts(list);
+        return list[idx];
+      }
+    }
+    const newDisc: CustomerDiscount = {
+      ...data,
+      id: `DISC-${Math.floor(100 + Math.random() * 900)}`,
+      active: true,
+      createdAt: new Date().toISOString()
+    };
+    list.unshift(newDisc);
+    this.saveDiscounts(list);
+    return newDisc;
+  },
+  deleteDiscount(id: string): boolean {
+    const list = this.getDiscounts();
+    const filtered = list.filter(d => d.id !== id);
+    if (filtered.length === list.length) return false;
+    this.saveDiscounts(filtered);
+    return true;
+  },
+  validateDiscount(code: string, email?: string): { valid: boolean; discount?: CustomerDiscount; message?: string } {
+    const list = this.getDiscounts().filter(d => d.active);
+    const codeClean = (code || '').trim().toUpperCase();
+    const found = list.find(d => d.code.toUpperCase() === codeClean);
+    if (!found) {
+      return { valid: false, message: 'Invalid discount code.' };
+    }
+    if (found.appliesTo === 'individual' && found.customerEmail && email) {
+      if (found.customerEmail.toLowerCase() !== email.toLowerCase()) {
+        return { valid: false, message: `This discount code is reserved for ${found.customerEmail}.` };
+      }
+    }
+    if (found.appliesTo === 'company' && found.customerEmail && email) {
+      const domain = found.customerEmail.split('@')[1];
+      const userDomain = email.split('@')[1];
+      if (domain && userDomain && domain.toLowerCase() !== userDomain.toLowerCase()) {
+        return { valid: false, message: `This corporate discount is only valid for @${domain} email addresses.` };
+      }
+    }
+    return { valid: true, discount: found };
   }
 };
