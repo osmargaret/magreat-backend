@@ -1,19 +1,43 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import https from 'node:https';
+import dns from 'node:dns';
 import { v2 as cloudinary } from 'cloudinary';
 import { storage } from './storage.js';
 
 dotenv.config();
 
+// Create resilient DNS resolver agent for Cloudinary API on Windows
+const dnsResolver = new dns.Resolver();
+try {
+  dnsResolver.setServers(['8.8.8.8', '1.1.1.1']);
+} catch {}
+
+const httpsAgent = new https.Agent({
+  lookup: (host: string, opts: any, cb: any) => {
+    dnsResolver.resolve4(host, (err, addrs) => {
+      if (!err && addrs && addrs.length > 0) {
+        if (opts && opts.all) {
+          return cb(null, addrs.map(a => ({ address: a, family: 4 })));
+        }
+        return cb(null, addrs[0], 4);
+      }
+      dns.lookup(host, opts, cb);
+    });
+  }
+});
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Configure Cloudinary with user credentials
+// Configure Cloudinary with user credentials & resilient agent
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'p2pa6dfi',
   api_key: process.env.CLOUDINARY_API_KEY || '683855118821861',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'HYHymAzBXMKxkL8WqiINNokxHDI'
+  api_secret: process.env.CLOUDINARY_API_SECRET || 'HYHymAzBXMKxkL8WqiINNokxHDI',
+  // @ts-ignore
+  agent: httpsAgent
 });
 
 // Enable CORS for frontend and admin apps
