@@ -159,3 +159,32 @@ export interface CustomerDiscount {
   active: boolean;
   createdAt: string;
 }
+
+export interface StoreSettings {
+  businessName: string;
+  kitchenAddress: string;
+  phone: string;
+  email: string;
+  onlineOrdering: boolean;
+  whatsappAlerts: boolean;
+  corporateDiscounts: boolean;
+  minOrderAmount?: number;
+  deliveryFee?: number;
+  openingHours?: string;
+  updatedAt?: string;
+}
+
+export interface CustomerAccount {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  companyName?: string;
+  ordersCount: number;
+  totalSpent: number;
+  lastOrderDate: string;
+  segment: 'Corporate' | 'Loyal VIP' | 'Returning' | 'Meal plan' | 'New';
+  kitchenNotes?: string;
+  discount?: CustomerDiscount;
+  createdAt: string;
+}

@@ -1,0 +1,13 @@
+{
+  "businessName": "Ma’Great Taste Restaurant & Catering Services",
+  "kitchenAddress": "Lekki Phase 1, Lagos, Nigeria",
+  "phone": "+234 803 456 7890",
+  "email": "orders@magreattaste.ng",
+  "onlineOrdering": true,
+  "whatsappAlerts": true,
+  "corporateDiscounts": true,
+  "minOrderAmount": 3000,
+  "deliveryFee": 2000,
+  "openingHours": "8:00 AM – 10:00 PM Daily",
+  "updatedAt": "2026-10-21T21:00:00.000Z"
+}

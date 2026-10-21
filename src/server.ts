@@ -687,6 +687,51 @@ app.get('/api/analytics', (req: Request, res: Response) => {
   res.json(analytics);
 });
 
+// ==========================================
+// 11. STORE SETTINGS (REAL TIME PERSISTENCE)
+// ==========================================
+app.get('/api/settings', (req: Request, res: Response) => {
+  const settings = storage.getSettings();
+  res.json(settings);
+});
+
+app.put('/api/settings', (req: Request, res: Response) => {
+  const updated = storage.updateSettings(req.body);
+  res.json(updated);
+});
+
+app.patch('/api/settings', (req: Request, res: Response) => {
+  const updated = storage.updateSettings(req.body);
+  res.json(updated);
+});
+
+// ==========================================
+// 12. CUSTOMERS DIRECTORY (REAL TIME)
+// ==========================================
+app.get('/api/customers', (req: Request, res: Response) => {
+  const customers = storage.getCustomers();
+  res.json(customers);
+});
+
+app.post('/api/customers', (req: Request, res: Response) => {
+  const { name, email, phone, companyName, segment, kitchenNotes } = req.body;
+  if (!name || !email) {
+    return res.status(400).json({ error: 'Name and email are required' });
+  }
+  const created = storage.addCustomer({
+    name,
+    email,
+    phone: phone || '0800 000 0000',
+    companyName: companyName || undefined,
+    ordersCount: 0,
+    totalSpent: 0,
+    lastOrderDate: 'New Customer',
+    segment: segment || (companyName ? 'Corporate' : 'New'),
+    kitchenNotes
+  });
+  res.status(201).json(created);
+});
+
 // Start Server
 app.listen(PORT, () => {
   console.log(`🚀 Ma’Great Taste Backend Server running on http://localhost:${PORT}`);

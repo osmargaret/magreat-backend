@@ -13,7 +13,9 @@ import type {
   CustomerSavedMeals,
   SavedMealItem,
   MealPlanPackage,
-  CustomerDiscount
+  CustomerDiscount,
+  StoreSettings,
+  CustomerAccount
 } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -160,381 +162,25 @@ const defaultFoods: FoodItem[] = [
   }
 ];
 
-const defaultOrders: Order[] = [
-  {
-    id: 'MGT-1048',
-    customerName: 'Adaeze Okafor',
-    customerEmail: 'adaeze.okafor@example.com',
-    customerPhone: '+234 803 456 7891',
-    deliveryAddress: 'Block 4, Flat 12, Parkview Estate, Ikoyi',
-    city: 'Lagos, Nigeria',
-    deliveryNotes: 'Please ring bell twice upon arrival',
-    items: [
-      {
-        foodId: 1,
-        name: 'Smoky Party Jollof & Grilled Chicken',
-        price: 6500,
-        quantity: 2,
-        image: 'https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?auto=format&fit=crop&w=900&q=85'
-      },
-      {
-        foodId: 8,
-        name: 'Spicy Peppered Asun & Yam Chips',
-        price: 6800,
-        quantity: 1,
-        image: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=900&q=85'
-      }
-    ],
-    subtotal: 19800,
-    deliveryFee: 2000,
-    total: 21800,
-    paymentMethod: 'card',
-    paymentStatus: 'paid',
-    paymentReference: 'PAY-CARD-99128',
-    status: 'New',
-    estimatedDeliveryTime: '35–45 min',
-    createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 15 * 60 * 1000).toISOString()
-  },
-  {
-    id: 'MGT-1047',
-    customerName: 'David Akinola',
-    customerEmail: 'd.akinola@northstar.ng',
-    customerPhone: '+234 806 912 3345',
-    deliveryAddress: '15 Bishop Aboyade Cole St, Victoria Island',
-    city: 'Lagos, Nigeria',
-    deliveryNotes: 'Drop with 4th floor reception desk',
-    items: [
-      {
-        foodId: 1,
-        name: 'Smoky Party Jollof & Grilled Chicken',
-        price: 6500,
-        quantity: 5,
-        image: 'https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?auto=format&fit=crop&w=900&q=85'
-      },
-      {
-        foodId: 3,
-        name: 'Creamy Herb Chicken Alfredo Pasta',
-        price: 7200,
-        quantity: 3,
-        image: 'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=900&q=85'
-      }
-    ],
-    subtotal: 54100,
-    deliveryFee: 2500,
-    total: 56600,
-    paymentMethod: 'transfer',
-    paymentStatus: 'paid',
-    paymentReference: 'TRF-WEMA-78234',
-    status: 'Preparing',
-    estimatedDeliveryTime: '20–30 min',
-    createdAt: new Date(Date.now() - 42 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 35 * 60 * 1000).toISOString()
-  },
-  {
-    id: 'MGT-1046',
-    customerName: 'Zainab Bello',
-    customerEmail: 'zainab.bello@gmail.com',
-    customerPhone: '+234 812 345 6780',
-    deliveryAddress: 'Plot 1204, Garki II, Area 11',
-    city: 'Abuja, Nigeria',
-    items: [
-      {
-        foodId: 7,
-        name: 'Rich Egusi Soup with Goat Meat & Pounded Yam',
-        price: 7500,
-        quantity: 2,
-        image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=900&q=85'
-      }
-    ],
-    subtotal: 15000,
-    deliveryFee: 1500,
-    total: 16500,
-    paymentMethod: 'card',
-    paymentStatus: 'paid',
-    paymentReference: 'PAY-CARD-44182',
-    status: 'Ready',
-    estimatedDeliveryTime: '10–15 min',
-    createdAt: new Date(Date.now() - 80 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 20 * 60 * 1000).toISOString()
-  },
-  {
-    id: 'MGT-1045',
-    customerName: 'Chika Nwosu',
-    customerEmail: 'chika.nwosu@outlook.com',
-    customerPhone: '+234 705 678 1234',
-    deliveryAddress: '24 Admiralty Way, Lekki Phase 1',
-    city: 'Lagos, Nigeria',
-    items: [
-      {
-        foodId: 6,
-        name: 'Heritage Ofada Rice & Designer Ayamase',
-        price: 6200,
-        quantity: 2,
-        image: 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=85'
-      }
-    ],
-    subtotal: 12400,
-    deliveryFee: 1800,
-    total: 14200,
-    paymentMethod: 'ussd',
-    paymentStatus: 'paid',
-    paymentReference: 'USSD-GTB-8912',
-    status: 'Delivered',
-    estimatedDeliveryTime: 'Completed',
-    createdAt: new Date(Date.now() - 180 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 120 * 60 * 1000).toISOString()
-  }
-];
+const defaultOrders: Order[] = [];
+const defaultBlogs: BlogPost[] = [];
+const defaultCatering: CateringEnquiry[] = [];
+const defaultMessages: CustomerMessage[] = [];
+const defaultSavedMeals: CustomerSavedMeals[] = [];
 
-const defaultBlogs: BlogPost[] = [
-  {
-    id: 1,
-    slug: 'the-art-of-smoky-party-jollof',
-    title: 'The Secret Behind Authentic Smoky Nigerian Party Jollof',
-    category: 'Culinary Secrets',
-    status: 'Published',
-    date: 'Oct 18, 2026',
-    readTime: '4 min read',
-    views: 542,
-    coverImage: 'https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?auto=format&fit=crop&w=1200&q=85',
-    excerpt: 'Discover why firewood, bay leaf infusion, and cast-iron bottom charring create that unforgettable Nigerian wedding party flavour.',
-    content: `
-# The Soul of West African Celebrations
-
-No Nigerian party is complete without that unmistakably fragrant, crimson mound of party jollof. The question food lovers have asked for decades: *How does one achieve that deep, woodsmoke aroma without an open outdoor firewood fire?*
-
-### 1. The Tomato-Pepper Reduction (The Base)
-The bedrock of great jollof is the blend: tatashey (red bell peppers) for vibrant hue, rodo (scotch bonnets) for kick, sweet plum tomatoes, garlic, ginger, and abundant red onions. The sauce must be parboiled and thoroughly fried in vegetable oil until the acidity gives way to a sweet, savory richness.
-
-### 2. High-Grade Long-Grain Rice & Rich Stock
-We simmer our rice in concentrated stock brewed from seasoned beef cuts, goat meat, thyme, bay leaves, curry powder, and white pepper. The grains absorb the depth of the stock before steaming in the tomato-pepper reduction.
-
-### 3. The Controlled Char Technique
-To capture that iconic party smokiness indoors, we cover the pot with heavy foil to seal the steam, allowing the bottom layer to gently scorch during the final 12 minutes of cooking. The rising smoke perfumes each individual grain of rice with that irresistible celebratory charm.
-
-At **Ma’Great Taste**, every batch is prepared with this unwavering attention to tradition. Next time you order our Smoky Party Jollof, notice that subtle aroma—it's pure culinary artistry.
-    `,
-    author: 'Chef Margaret Samuel',
-    authorRole: 'Founder & Head Chef',
-    authorAvatar: 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=200&q=85',
-    tags: ['Jollof Rice', 'Nigerian Food', 'Culinary Secrets', 'Party Food'],
-    relatedFoodIds: [1, 6]
-  },
-  {
-    id: 2,
-    slug: 'how-to-plan-stress-free-event-catering',
-    title: 'The Ultimate Guide to Stress-Free Event Catering in Nigeria',
-    category: 'Event Planning',
-    status: 'Published',
-    date: 'Oct 14, 2026',
-    readTime: '6 min read',
-    views: 389,
-    coverImage: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&w=1200&q=85',
-    excerpt: 'Whether hosting 50 or 500 guests, here is how to calculate portion sizes, satisfy diverse palates, and ensure piping-hot service.',
-    content: `
-# Food is the Heartbeat of Your Event
-
-When guests leave your wedding reception, birthday gala, or corporate symposium, the one thing they will debate for weeks is the food. Planning catering shouldn't feel like a high-wire act.
-
-### Rule 1: The Golden Ratio of Swallow vs. Rice
-In urban Nigerian celebrations, the crowd usually splits:
-- 55% gravitate towards Rice dishes (Smoky Jollof, Fried Rice, Ofada Rice)
-- 30% choose Soups & Swallows (Egusi, Edikang Ikong, Afang with Pounded Yam or Semo)
-- 15% prefer lighter continental or grilled protein platters
-
-Always allow for a 10% buffer so late arrivals receive the exact same generous portions as the first table served.
-
-### Rule 2: Live Finger Food Stations (Small Chops)
-Keep hunger at bay while the formal proceedings or photos take place. Spicy puff puff, spring rolls, samosas, and tender peppered gizzards buy your event schedule valuable breathing room.
-
-### Rule 3: Professional Chafing and Temperature Control
-Lukewarm jollof loses its magic. Ensure your caterer uses heavy-duty food warmers with calibrated fuel burners, and pre-heats dishes to preserve texture and aroma.
-
-*Planning an upcoming milestone? Speak with the Ma’Great Taste events concierge today for customized tasting sessions and bespoke menus!*
-    `,
-    author: 'Margaret Samuel',
-    authorRole: 'Founder & Head Chef',
-    authorAvatar: 'https://images.unsplash.com/photo-1577219491135-ce391730fb2c?auto=format&fit=crop&w=200&q=85',
-    tags: ['Catering', 'Event Tips', 'Weddings', 'Parties'],
-    relatedFoodIds: [1, 7, 8]
-  },
-  {
-    id: 3,
-    slug: 'five-nigerian-meals-that-freeze-and-reheat-beautifully',
-    title: 'Five Wholesome Nigerian Meals That Freeze and Reheat Like Magic',
-    category: 'Meal Prep',
-    status: 'Published',
-    date: 'Oct 09, 2026',
-    readTime: '5 min read',
-    views: 421,
-    coverImage: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=1200&q=85',
-    excerpt: 'Save hours in the kitchen without sacrificing fresh home-cooked flavor with our freezer-stocking tips and favorite freezer-friendly dishes.',
-    content: `
-# Busy Professionals, Meet Peace of Mind
-
-Between commuting in traffic and demanding work hours, standing by a stove for three hours every evening simply isn't realistic. The solution isn't mediocre fast food—it's smart batch freezing.
-
-Here are the top five Nigerian dishes that preserve their taste, nutrients, and texture when frozen:
-
-1. **Thick Egusi & Ogbono Soups**: Because of the high oil and seed content, egusi freezes exceptionally well for up to 3 months. When reheated over low heat with a splash of water, it returns to freshly made glory.
-2. **Designer Ayamase / Ofada Sauce**: Bleached palm oil sauces actually develop deeper flavor as they mature!
-3. **Pepper Soup Bases (Catfish, Goat Meat, Chicken)**: Store in airtight glass or freezer-safe tubs. Defrost overnight in the fridge and simmer for 5 minutes.
-4. **Smoky Party Jollof & Fried Rice**: Cool completely before portioning. Reheat with a wet paper towel over the bowl to re-hydrate the grains.
-5. **Slow-Cooked Stews (Obe Ata)**: Your multi-purpose savior for rice, boiled yam, plantain, and pasta.
-
-Check out our **Ma’Great Taste Freezer Stocking Plans** to have your freezer loaded with portion-controlled packages ready whenever hunger strikes!
-    `,
-    author: 'Tomi Adeyemi',
-    authorRole: 'Nutrition & Meal Prep Lead',
-    authorAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=85',
-    tags: ['Meal Prep', 'Freezer Stocking', 'Busy Life', 'Healthy Eating'],
-    relatedFoodIds: [6, 7]
-  }
-];
-
-const defaultCatering: CateringEnquiry[] = [
-  {
-    id: 'CAT-201',
-    customerName: 'Nneka Eze',
-    customerEmail: 'nneka.eze@gmail.com',
-    customerPhone: '+234 802 334 5567',
-    eventType: 'Birthday Dinner',
-    eventDate: '2026-11-08',
-    guestCount: 60,
-    location: 'Lekki Phase 1, Lagos',
-    budget: '₦600,000 - ₦800,000',
-    dietaryRequirements: 'Halal options required, 5 vegetarians',
-    notes: 'Looking for a plated 3-course dinner with jollof, grilled fish and continental dessert.',
-    status: 'Quote sent',
-    createdAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString()
-  },
-  {
-    id: 'CAT-202',
-    customerName: 'Kelechi Opara (Northstar Ltd)',
-    customerEmail: 'kelechi@northstar.ng',
-    customerPhone: '+234 803 777 9901',
-    eventType: 'Corporate Lunch Subscription',
-    eventDate: '2026-11-02',
-    guestCount: 25,
-    location: 'Victoria Island, Lagos',
-    budget: '₦450,000 / week',
-    notes: 'Daily boxed lunches for engineering team Monday to Friday.',
-    status: 'Pending',
-    createdAt: new Date(Date.now() - 5 * 3600 * 1000).toISOString()
-  },
-  {
-    id: 'CAT-203',
-    customerName: 'Olu & Tobi Adeleke',
-    customerEmail: 'olu.tobi2026@gmail.com',
-    customerPhone: '+234 818 901 2345',
-    eventType: 'Wedding Reception',
-    eventDate: '2026-12-12',
-    guestCount: 180,
-    location: 'Ikeja GRA, Lagos',
-    budget: '₦1,800,000 - ₦2,200,000',
-    notes: 'Full buffet spread: Nigerian traditional swallows, party jollof, small chops and cocktail bar.',
-    status: 'Confirmed',
-    createdAt: new Date(Date.now() - 6 * 24 * 3600 * 1000).toISOString()
-  }
-];
-
-const defaultMessages: CustomerMessage[] = [
-  {
-    id: 'MSG-301',
-    name: 'Nneka Eze',
-    email: 'nneka.eze@gmail.com',
-    phone: '+234 802 334 5567',
-    subject: 'Catering for a 60-person birthday',
-    body: 'Hello, please can I get a quote for a birthday dinner for 60 guests in Lekki on November 8? Would love tasting beforehand.',
-    time: '12 min ago',
-    unread: true,
-    createdAt: new Date(Date.now() - 12 * 60 * 1000).toISOString()
-  },
-  {
-    id: 'MSG-302',
-    name: 'Kelechi from Northstar Ltd',
-    email: 'kelechi@northstar.ng',
-    phone: '+234 803 777 9901',
-    subject: 'Corporate lunch subscription',
-    body: 'We are interested in lunch delivery for our team of 25, Monday to Friday. Can we schedule a quick call?',
-    time: '38 min ago',
-    unread: true,
-    createdAt: new Date(Date.now() - 38 * 60 * 1000).toISOString()
-  },
-  {
-    id: 'MSG-303',
-    name: 'Tomi Adeyemi',
-    email: 'tomi.adeyemi@yahoo.com',
-    subject: 'Question about freezer meal plans',
-    body: 'Can I mix different soups and swallows in the monthly package? Specifically Egusi and Afang?',
-    time: '1 hr ago',
-    unread: true,
-    createdAt: new Date(Date.now() - 65 * 60 * 1000).toISOString()
-  },
-  {
-    id: 'MSG-304',
-    name: 'Aisha Bello',
-    email: 'aisha.bello@gmail.com',
-    subject: 'Delivery feedback',
-    body: 'The food was lovely! Arrived hot and nicely packaged. Please add more spicy sauce options to the checkout!',
-    time: 'Yesterday',
-    unread: false,
-    createdAt: new Date(Date.now() - 25 * 3600 * 1000).toISOString()
-  }
-];
-
-const defaultSavedMeals: CustomerSavedMeals[] = [
-  {
-    id: 'SM-101',
-    customerName: 'Sarah Adeleke',
-    customerEmail: 'sarah.adeleke@gmail.com',
-    customerPhone: '0803 456 7890',
-    items: [
-      {
-        foodId: 1,
-        name: 'Smoky Party Jollof & Grilled Chicken',
-        price: 6500,
-        image: 'https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?auto=format&fit=crop&w=900&q=85',
-        category: 'Nigerian',
-        savedAt: new Date(Date.now() - 4 * 3600 * 1000).toISOString()
-      },
-      {
-        foodId: 4,
-        name: 'Designer Ayamase (Special Ofada Pepper Stew)',
-        price: 7800,
-        image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=900&q=85',
-        category: 'Nigerian',
-        savedAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString()
-      }
-    ],
-    reminderStatus: 'Active',
-    reminderCount: 1,
-    lastReminderSentAt: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-    createdAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 3 * 3600 * 1000).toISOString()
-  },
-  {
-    id: 'SM-102',
-    customerName: 'Kelechi Nwosu',
-    customerEmail: 'kelechi.nwosu@yahoo.com',
-    customerPhone: '0812 345 6789',
-    items: [
-      {
-        foodId: 7,
-        name: 'Rich Egusi Soup with Goat Meat & Pounded Yam',
-        price: 7500,
-        image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=900&q=85',
-        category: 'Nigerian',
-        savedAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString()
-      }
-    ],
-    reminderStatus: 'Active',
-    reminderCount: 0,
-    createdAt: new Date(Date.now() - 10 * 3600 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 6 * 3600 * 1000).toISOString()
-  }
-];
+const defaultSettings: StoreSettings = {
+  businessName: 'Ma’Great Taste Restaurant & Catering Services',
+  kitchenAddress: 'Lekki Phase 1, Lagos, Nigeria',
+  phone: '+234 803 456 7890',
+  email: 'orders@magreattaste.ng',
+  onlineOrdering: true,
+  whatsappAlerts: true,
+  corporateDiscounts: true,
+  minOrderAmount: 3000,
+  deliveryFee: 2000,
+  openingHours: '8:00 AM – 10:00 PM Daily',
+  updatedAt: new Date().toISOString()
+};
 
 export const storage = {
   // Foods
@@ -951,37 +597,82 @@ export const storage = {
   // CUSTOMER & COMPANY DISCOUNTS
   // ==========================================
   getDiscounts(): CustomerDiscount[] {
-    const defaultDiscs: CustomerDiscount[] = [
-      {
-        id: 'DISC-01',
-        customerName: 'David Akinola',
-        customerEmail: 'david@northstar.ng',
-        companyName: 'Northstar Energy Ltd',
-        type: 'percent',
-        value: 15,
-        code: 'NORTHSTAR-15',
-        appliesTo: 'company',
-        notes: 'Corporate catering contract 15% discount for all team members',
-        active: true,
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'DISC-02',
-        customerName: 'Adaeze Okafor',
-        customerEmail: 'adaeze@example.com',
-        type: 'percent',
-        value: 10,
-        code: 'VIP-ADAEZE10',
-        appliesTo: 'individual',
-        notes: 'Loyal VIP customer 10% discount on every order',
-        active: true,
-        createdAt: new Date().toISOString()
-      }
-    ];
-    return readJsonFile<CustomerDiscount[]>('discounts.json', defaultDiscs);
+    return readJsonFile<CustomerDiscount[]>('discounts.json', []);
   },
   saveDiscounts(list: CustomerDiscount[]): void {
     writeJsonFile('discounts.json', list);
+  },
+
+  // ==========================================
+  // STORE SETTINGS (REAL TIME)
+  // ==========================================
+  getSettings(): StoreSettings {
+    return readJsonFile<StoreSettings>('settings.json', defaultSettings);
+  },
+  updateSettings(data: Partial<StoreSettings>): StoreSettings {
+    const current = this.getSettings();
+    const updated: StoreSettings = {
+      ...current,
+      ...data,
+      updatedAt: new Date().toISOString()
+    };
+    writeJsonFile('settings.json', updated);
+    return updated;
+  },
+
+  // ==========================================
+  // CUSTOMERS (REAL TIME & DERIVED FROM ORDERS)
+  // ==========================================
+  getCustomers(): CustomerAccount[] {
+    const manualCustomers = readJsonFile<CustomerAccount[]>('customers.json', []);
+    const orders = this.getOrders();
+    const discounts = this.getDiscounts();
+    const map = new Map<string, CustomerAccount>();
+
+    // Manual registered customers
+    for (const c of manualCustomers) {
+      const disc = discounts.find(d => d.customerEmail?.toLowerCase() === c.email.toLowerCase() || (c.companyName && d.companyName?.toLowerCase() === c.companyName.toLowerCase()));
+      map.set(c.email.toLowerCase(), { ...c, discount: disc });
+    }
+
+    // Derive from placed orders
+    for (const o of orders) {
+      if (!o.customerEmail) continue;
+      const key = o.customerEmail.toLowerCase();
+      const existing = map.get(key);
+      if (existing) {
+        existing.ordersCount = (existing.ordersCount || 0) + 1;
+        existing.totalSpent = (existing.totalSpent || 0) + (o.total || 0);
+        existing.lastOrderDate = new Date(o.createdAt).toLocaleDateString();
+      } else {
+        const disc = discounts.find(d => d.customerEmail?.toLowerCase() === key);
+        map.set(key, {
+          id: `CUST-${Math.floor(100 + Math.random() * 900)}`,
+          name: o.customerName,
+          email: o.customerEmail,
+          phone: o.customerPhone || '0800 000 0000',
+          ordersCount: 1,
+          totalSpent: o.total || 0,
+          lastOrderDate: new Date(o.createdAt).toLocaleDateString(),
+          segment: o.total > 50000 ? 'Loyal VIP' : 'Returning',
+          discount: disc,
+          createdAt: o.createdAt
+        });
+      }
+    }
+
+    return Array.from(map.values());
+  },
+  addCustomer(data: Omit<CustomerAccount, 'id' | 'createdAt'>): CustomerAccount {
+    const manualCustomers = readJsonFile<CustomerAccount[]>('customers.json', []);
+    const newCust: CustomerAccount = {
+      ...data,
+      id: `CUST-${Math.floor(100 + Math.random() * 900)}`,
+      createdAt: new Date().toISOString()
+    };
+    manualCustomers.unshift(newCust);
+    writeJsonFile('customers.json', manualCustomers);
+    return newCust;
   },
   createOrUpdateDiscount(data: Omit<CustomerDiscount, 'id' | 'createdAt'> & { id?: string }): CustomerDiscount {
     const list = this.getDiscounts();
