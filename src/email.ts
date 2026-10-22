@@ -19,6 +19,25 @@ const SENDER_NAME = process.env.MAIL_SENDER_NAME || 'Margaret O.';
 const SENDER_EMAIL = process.env.MAIL_FROM || process.env.SMTP_FROM || `"${SENDER_NAME}" <${ADMIN_EMAIL}>`;
 
 let transporter: Transporter | null = null;
+let activePort = SMTP_PORT;
+
+function createMailer(port: number): Transporter {
+  return nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: port,
+    secure: port === 465,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS
+    },
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 12000,
+    tls: {
+      rejectUnauthorized: false
+    }
+  });
+}
 
 function getTransporter(): Transporter | null {
   if (transporter) return transporter;
@@ -26,15 +45,7 @@ function getTransporter(): Transporter | null {
     return null;
   }
   try {
-    transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_PORT === 465,
-      auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS
-      }
-    });
+    transporter = createMailer(activePort);
     return transporter;
   } catch (err) {
     console.error('[EMAIL SERVICE] Failed to initialize nodemailer transporter:', err);
@@ -42,37 +53,82 @@ function getTransporter(): Transporter | null {
   }
 }
 
+// Verification cache to avoid excessive roundtrips on every page refresh
+let lastVerifyResult: { success: boolean; message: string; host: string; port: number; user: string; timestamp: number } | null = null;
+
 /**
- * Verify SMTP credentials and return live status
+ * Verify SMTP credentials and return live status with automatic port 2525 fallback
  */
-export async function testSmtpConnection(): Promise<{ success: boolean; message: string; host: string; port: number; user: string }> {
-  const mailer = getTransporter();
-  if (!mailer) {
+export async function testSmtpConnection(forceFresh = false): Promise<{ success: boolean; message: string; host: string; port: number; user: string }> {
+  const now = Date.now();
+  if (!forceFresh && lastVerifyResult && (now - lastVerifyResult.timestamp < 60000)) {
+    return {
+      success: lastVerifyResult.success,
+      message: lastVerifyResult.message,
+      host: lastVerifyResult.host,
+      port: lastVerifyResult.port,
+      user: lastVerifyResult.user
+    };
+  }
+
+  if (!SMTP_USER || !SMTP_PASS) {
     return {
       success: false,
       message: 'SMTP credentials are not configured in environment variables.',
       host: SMTP_HOST,
-      port: SMTP_PORT,
+      port: activePort,
       user: SMTP_USER
     };
   }
+
+  // 1. Try configured port (e.g. 587)
   try {
-    await mailer.verify();
-    return {
+    const primaryMailer = createMailer(activePort);
+    await primaryMailer.verify();
+    transporter = primaryMailer;
+    lastVerifyResult = {
       success: true,
-      message: `SMTP Connected successfully to ${SMTP_HOST}:${SMTP_PORT}`,
+      message: `Connected successfully to ${SMTP_HOST}:${activePort}`,
       host: SMTP_HOST,
-      port: SMTP_PORT,
-      user: SMTP_USER
+      port: activePort,
+      user: SMTP_USER,
+      timestamp: now
     };
+    return lastVerifyResult;
   } catch (err: any) {
-    return {
+    console.warn(`[SMTP VERIFY] Port ${activePort} connection failed (${err.message}). Trying Mailtrap cloud port 2525...`);
+    
+    // 2. If port 587 timed out or failed, try Mailtrap's unblocked cloud port 2525
+    if (activePort !== 2525) {
+      try {
+        const fallbackMailer = createMailer(2525);
+        await fallbackMailer.verify();
+        activePort = 2525;
+        transporter = fallbackMailer;
+        lastVerifyResult = {
+          success: true,
+          message: `Connected successfully to ${SMTP_HOST}:2525 (Bypass Port)`,
+          host: SMTP_HOST,
+          port: 2525,
+          user: SMTP_USER,
+          timestamp: now
+        };
+        console.log('[SMTP VERIFY] Successfully connected via Mailtrap cloud port 2525!');
+        return lastVerifyResult;
+      } catch (fallbackErr: any) {
+        console.error('[SMTP VERIFY] Both 587 and 2525 failed:', fallbackErr.message);
+      }
+    }
+
+    lastVerifyResult = {
       success: false,
       message: err.message || 'Failed to authenticate with SMTP server',
       host: SMTP_HOST,
-      port: SMTP_PORT,
-      user: SMTP_USER
+      port: activePort,
+      user: SMTP_USER,
+      timestamp: now
     };
+    return lastVerifyResult;
   }
 }
 
