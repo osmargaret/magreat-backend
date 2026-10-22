@@ -791,8 +791,15 @@ app.post('/api/customers', (req: Request, res: Response) => {
   res.status(201).json(created);
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`🚀 Ma’Great Taste Backend Server running on http://localhost:${PORT}`);
-  console.log(`📡 Ready to serve Frontend (port 5173) and Admin Studio (port 5174)`);
-});
+// Start Server (connect to the database first)
+storage.init()
+  .catch(err => {
+    console.error('[DB] Initialization failed:', err);
+    process.exit(1);
+  })
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 Ma’Great Taste Backend Server running on http://localhost:${PORT}`);
+      console.log(`📡 Ready to serve Frontend (port 5173) and Admin Studio (port 5174)`);
+    });
+  });

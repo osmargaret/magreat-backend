@@ -1,6 +1,8 @@
+import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import pg from 'pg';
 import type {
   FoodItem,
   Order,
@@ -27,26 +29,80 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+// ---------------------------------------------------------------------
+// Persistence: PostgreSQL (Neon) when DATABASE_URL is set, otherwise local JSON files.
+// Data is held in a memory cache (synchronous reads) and written through to the DB.
+// ---------------------------------------------------------------------
+const DATABASE_URL = (process.env.DATABASE_URL || '').replace(/[?&]channel_binding=[^&]*/g, '');
+const pool: pg.Pool | null = DATABASE_URL
+  ? new pg.Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 5 })
+  : null;
+const cache = new Map<string, unknown>();
+let writeQueue: Promise<void> = Promise.resolve();
+
+if (pool) {
+  pool.on('error', err => console.error('[DB] Idle client error:', err.message));
+}
+
+export async function initStorage(): Promise<void> {
+  if (!pool) {
+    console.warn('[DB] DATABASE_URL not set — using local JSON files (data is NOT persistent on Render).');
+    return;
+  }
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS kv_store (
+       key TEXT PRIMARY KEY,
+       data JSONB NOT NULL,
+       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+     )`
+  );
+  const { rows } = await pool.query('SELECT key, data FROM kv_store');
+  for (const row of rows) cache.set(row.key, row.data);
+  console.log(`[DB] Connected to PostgreSQL. Loaded ${rows.length} collection(s).`);
+}
+
+function persist(filename: string, data: unknown): void {
+  if (!pool) {
+    fs.writeFileSync(path.join(DATA_DIR, filename), JSON.stringify(data, null, 2), 'utf-8');
+    return;
+  }
+  const payload = JSON.stringify(data);
+  writeQueue = writeQueue
+    .then(() =>
+      pool
+        .query(
+          `INSERT INTO kv_store (key, data, updated_at) VALUES ($1, $2::jsonb, NOW())
+           ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+          [filename, payload]
+        )
+        .then(() => undefined)
+    )
+    .catch(err => console.error(`[DB] Failed to save ${filename}:`, err.message));
+}
+
 function readJsonFile<T>(filename: string, defaultData: T): T {
+  if (cache.has(filename)) return cache.get(filename) as T;
+
+  // First access: import existing local JSON (one-time migration) or use seed defaults
+  let initial: T = defaultData;
   const filePath = path.join(DATA_DIR, filename);
-  if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(filePath, JSON.stringify(defaultData, null, 2), 'utf-8');
-    return defaultData;
+  if (fs.existsSync(filePath)) {
+    try {
+      initial = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as T;
+    } catch (err) {
+      console.error(`Error reading ${filename}, using default data`, err);
+    }
   }
-  try {
-    const raw = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(raw) as T;
-  } catch (err) {
-    console.error(`Error reading ${filename}, recreating with default data`, err);
-    fs.writeFileSync(filePath, JSON.stringify(defaultData, null, 2), 'utf-8');
-    return defaultData;
-  }
+  cache.set(filename, initial);
+  persist(filename, initial);
+  return initial;
 }
 
 function writeJsonFile<T>(filename: string, data: T): void {
-  const filePath = path.join(DATA_DIR, filename);
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  cache.set(filename, data);
+  persist(filename, data);
 }
+
 
 // Initial default seeds
 const defaultFoods: FoodItem[] = [
@@ -183,6 +239,7 @@ const defaultSettings: StoreSettings = {
 };
 
 export const storage = {
+  init: initStorage,
   // Foods
   getFoods(): FoodItem[] {
     return readJsonFile<FoodItem[]>('foods.json', defaultFoods);
