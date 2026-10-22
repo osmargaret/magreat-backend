@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import nodemailer, { type Transporter } from 'nodemailer';
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'hello@magreattaste.ng';
 const SMTP_HOST = process.env.SMTP_HOST || 'smtp.gmail.com';
@@ -6,9 +6,9 @@ const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
 
-let transporter: nodemailer.Transporter | null = null;
+let transporter: Transporter | null = null;
 
-function getTransporter(): nodemailer.Transporter | null {
+function getTransporter(): Transporter | null {
   if (transporter) return transporter;
   if (!SMTP_USER || !SMTP_PASS) {
     return null;

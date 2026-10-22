@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import https from 'node:https';
@@ -6,10 +6,22 @@ import dns from 'node:dns';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { v2 as cloudinary } from 'cloudinary';
+import rateLimit from 'express-rate-limit';
 import { storage } from './storage.js';
 import { sendNewsletterNotification, sendContactMessageNotification } from './email.js';
 
 dotenv.config();
+
+// ==========================================
+// STARTUP: Validate required environment variables
+// ==========================================
+const REQUIRED_ENV = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET', 'ADMIN_SECRET'];
+const missing = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missing.length > 0) {
+  console.error(`[STARTUP] Missing required environment variables: ${missing.join(', ')}`);
+  console.error('[STARTUP] Set these in your .env file or Render environment settings.');
+  process.exit(1);
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,19 +49,28 @@ const httpsAgent = new https.Agent({
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Configure Cloudinary with user credentials & resilient agent
+// Configure Cloudinary — credentials MUST come from environment variables
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'p2pa6dfi',
-  api_key: process.env.CLOUDINARY_API_KEY || '683855118821861',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'HYHymAzBXMKxkL8WqiINNokxHDI',
-  // @ts-ignore
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
+  api_key: process.env.CLOUDINARY_API_KEY!,
+  api_secret: process.env.CLOUDINARY_API_SECRET!,
+  // @ts-ignore — custom DNS agent for resilient resolution on Linux/Windows
   agent: httpsAgent
 });
 
-// Enable CORS for frontend and admin apps
+// Enable CORS — restrict to known origins (configure via CORS_ORIGINS env var)
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',')
+  : ['http://localhost:5173', 'http://localhost:5174'];
+
 app.use(
   cors({
-    origin: '*',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (curl, Render health checks, server-to-server)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      callback(new Error(`CORS: Origin ${origin} not allowed`));
+    },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
   })
@@ -71,6 +92,32 @@ app.use((req, res, next) => {
     console.log(`[${req.method}] ${req.originalUrl} - ${res.statusCode} (${duration}ms)`);
   });
   next();
+});
+
+// ==========================================
+// AUTH: Admin Bearer-token middleware
+// ==========================================
+const ADMIN_SECRET = process.env.ADMIN_SECRET!;
+
+function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  const auth = req.headers['authorization'] || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!token || token !== ADMIN_SECRET) {
+    res.status(401).json({ error: 'Unauthorized — valid admin token required.' });
+    return;
+  }
+  next();
+}
+
+// ==========================================
+// RATE LIMITING: protect public write endpoints
+// ==========================================
+const publicWriteLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests — please try again in a few minutes.' }
 });
 
 // --- Root & Health Check ---
@@ -134,7 +181,7 @@ app.get('/health', (req: Request, res: Response) => {
 // ==========================================
 // IMAGE UPLOAD (CLOUDINARY)
 // ==========================================
-app.post('/api/upload', async (req: Request, res: Response) => {
+app.post('/api/upload', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { image, folder } = req.body;
     if (!image) {
@@ -184,7 +231,7 @@ app.get('/api/menu', (req: Request, res: Response) => {
   res.json(filtered);
 });
 
-app.post('/api/menu', (req: Request, res: Response) => {
+app.post('/api/menu', requireAdmin, (req: Request, res: Response) => {
   const { name, description, price, category, tag, image, rating, time } = req.body;
   if (!name || !price) {
     return res.status(400).json({ error: 'Name and price are required' });
@@ -205,7 +252,7 @@ app.post('/api/menu', (req: Request, res: Response) => {
   res.status(201).json(newFood);
 });
 
-app.put('/api/menu/:id', (req: Request, res: Response) => {
+app.put('/api/menu/:id', requireAdmin, (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const updated = storage.updateFood(id, req.body);
   if (!updated) {
@@ -214,7 +261,7 @@ app.put('/api/menu/:id', (req: Request, res: Response) => {
   res.json(updated);
 });
 
-app.delete('/api/menu/:id', (req: Request, res: Response) => {
+app.delete('/api/menu/:id', requireAdmin, (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const success = storage.deleteFood(id);
   if (!success) {
@@ -226,7 +273,7 @@ app.delete('/api/menu/:id', (req: Request, res: Response) => {
 // ==========================================
 // 2. ORDER ENDPOINTS & CHECKOUT
 // ==========================================
-app.get('/api/orders', (req: Request, res: Response) => {
+app.get('/api/orders', requireAdmin, (req: Request, res: Response) => {
   const orders = storage.getOrders();
   const status = req.query.status as string | undefined;
   const search = req.query.search as string | undefined;
@@ -247,7 +294,7 @@ app.get('/api/orders', (req: Request, res: Response) => {
   res.json(filtered);
 });
 
-app.get('/api/orders/:id', (req: Request, res: Response) => {
+app.get('/api/orders/:id', requireAdmin, (req: Request, res: Response) => {
   const order = storage.getOrderById(String(req.params.id));
   if (!order) {
     return res.status(404).json({ error: 'Order not found' });
@@ -255,7 +302,7 @@ app.get('/api/orders/:id', (req: Request, res: Response) => {
   res.json(order);
 });
 
-app.post('/api/orders', (req: Request, res: Response) => {
+app.post('/api/orders', publicWriteLimit, (req: Request, res: Response) => {
   const {
     customerName,
     customerEmail,
@@ -296,7 +343,7 @@ app.post('/api/orders', (req: Request, res: Response) => {
   res.status(201).json(newOrder);
 });
 
-app.patch('/api/orders/:id/status', (req: Request, res: Response) => {
+app.patch('/api/orders/:id/status', requireAdmin, (req: Request, res: Response) => {
   const { status, paymentStatus } = req.body;
   if (!status) {
     return res.status(400).json({ error: 'Status is required' });
@@ -380,7 +427,7 @@ app.get('/api/blog/:slug', (req: Request, res: Response) => {
   res.json(blog);
 });
 
-app.post('/api/blog', (req: Request, res: Response) => {
+app.post('/api/blog', requireAdmin, (req: Request, res: Response) => {
   const { title, category, status, coverImage, excerpt, content, tags, relatedFoodIds } = req.body;
   if (!title) {
     return res.status(400).json({ error: 'Article title is required' });
@@ -411,7 +458,7 @@ app.post('/api/blog', (req: Request, res: Response) => {
   res.status(201).json(newBlog);
 });
 
-app.put('/api/blog/:id', (req: Request, res: Response) => {
+app.put('/api/blog/:id', requireAdmin, (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const updated = storage.updateBlog(id, req.body);
   if (!updated) {
@@ -420,7 +467,7 @@ app.put('/api/blog/:id', (req: Request, res: Response) => {
   res.json(updated);
 });
 
-app.delete('/api/blog/:id', (req: Request, res: Response) => {
+app.delete('/api/blog/:id', requireAdmin, (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const success = storage.deleteBlog(id);
   if (!success) {
@@ -437,7 +484,7 @@ app.get('/api/catering', (req: Request, res: Response) => {
   res.json(list);
 });
 
-app.post('/api/catering', (req: Request, res: Response) => {
+app.post('/api/catering', publicWriteLimit, (req: Request, res: Response) => {
   const { customerName, customerEmail, customerPhone, eventType, eventDate, guestCount, location, budget, dietaryRequirements, notes } = req.body;
   if (!customerName || !customerPhone || !eventType) {
     return res.status(400).json({ error: 'Name, phone, and event type are required' });
@@ -459,7 +506,7 @@ app.post('/api/catering', (req: Request, res: Response) => {
   res.status(201).json(newEnquiry);
 });
 
-app.patch('/api/catering/:id/status', (req: Request, res: Response) => {
+app.patch('/api/catering/:id/status', requireAdmin, (req: Request, res: Response) => {
   const { status } = req.body;
   const updated = storage.updateCateringStatus(String(req.params.id), status);
   if (!updated) {
@@ -511,12 +558,12 @@ app.delete(['/api/mealplans/packages/:id', '/api/meal-plans/packages/:id', '/api
 // ==========================================
 // 6B. CUSTOMER & COMPANY DISCOUNTS
 // ==========================================
-app.get('/api/discounts', (req: Request, res: Response) => {
+app.get('/api/discounts', requireAdmin, (req: Request, res: Response) => {
   const list = storage.getDiscounts();
   res.json(list);
 });
 
-app.post('/api/discounts', (req: Request, res: Response) => {
+app.post('/api/discounts', requireAdmin, (req: Request, res: Response) => {
   const { customerName, customerEmail, companyName, type, value, code, appliesTo, notes, id } = req.body;
   if (!value || !code) {
     return res.status(400).json({ error: 'Discount value and promo code are required' });
@@ -536,7 +583,7 @@ app.post('/api/discounts', (req: Request, res: Response) => {
   res.status(201).json(result);
 });
 
-app.delete('/api/discounts/:id', (req: Request, res: Response) => {
+app.delete('/api/discounts/:id', requireAdmin, (req: Request, res: Response) => {
   const success = storage.deleteDiscount(String(req.params.id));
   if (!success) {
     return res.status(404).json({ error: 'Discount not found' });
@@ -577,12 +624,12 @@ app.post('/api/mealplans/order', (req: Request, res: Response) => {
 // ==========================================
 // 7. MESSAGES & ENQUIRIES
 // ==========================================
-app.get('/api/messages', (req: Request, res: Response) => {
+app.get('/api/messages', requireAdmin, (req: Request, res: Response) => {
   const messages = storage.getMessages();
   res.json(messages);
 });
 
-app.post('/api/messages', (req: Request, res: Response) => {
+app.post('/api/messages', publicWriteLimit, (req: Request, res: Response) => {
   const { name, email, phone, subject, body } = req.body;
   if (!name || !body) {
     return res.status(400).json({ error: 'Name and message body are required' });
@@ -611,7 +658,7 @@ app.post('/api/messages', (req: Request, res: Response) => {
   res.status(201).json(newMsg);
 });
 
-app.patch('/api/messages/:id/read', (req: Request, res: Response) => {
+app.patch('/api/messages/:id/read', requireAdmin, (req: Request, res: Response) => {
   const success = storage.markMessageRead(String(req.params.id));
   if (!success) {
     return res.status(404).json({ error: 'Message not found' });
@@ -619,7 +666,7 @@ app.patch('/api/messages/:id/read', (req: Request, res: Response) => {
   res.json({ message: 'Marked as read' });
 });
 
-app.post('/api/messages/read-all', (req: Request, res: Response) => {
+app.post('/api/messages/read-all', requireAdmin, (req: Request, res: Response) => {
   storage.markAllMessagesRead();
   res.json({ message: 'All messages marked as read' });
 });
@@ -627,7 +674,7 @@ app.post('/api/messages/read-all', (req: Request, res: Response) => {
 // ==========================================
 // 8. NEWSLETTER SUBSCRIPTION
 // ==========================================
-app.post('/api/newsletter', (req: Request, res: Response) => {
+app.post('/api/newsletter', publicWriteLimit, (req: Request, res: Response) => {
   const { email } = req.body;
   if (!email || !email.includes('@')) {
     return res.status(400).json({ error: 'A valid email address is required' });
@@ -659,12 +706,12 @@ app.post('/api/newsletter', (req: Request, res: Response) => {
 // ==========================================
 // 9. SAVED MEALS & DINNER REMINDERS
 // ==========================================
-app.get('/api/saved-meals', (req: Request, res: Response) => {
+app.get('/api/saved-meals', requireAdmin, (req: Request, res: Response) => {
   const savedMeals = storage.getSavedMeals();
   res.json(savedMeals);
 });
 
-app.post('/api/saved-meals', (req: Request, res: Response) => {
+app.post('/api/saved-meals', publicWriteLimit, (req: Request, res: Response) => {
   const { customerName, customerEmail, customerPhone, items } = req.body;
   if (!customerEmail || !items || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'Customer email and at least one saved meal item are required' });
@@ -683,7 +730,7 @@ app.post('/api/saved-meals', (req: Request, res: Response) => {
   });
 });
 
-app.post('/api/saved-meals/:id/remind', (req: Request, res: Response) => {
+app.post('/api/saved-meals/:id/remind', requireAdmin, (req: Request, res: Response) => {
   const result = storage.sendSavedMealReminder(String(req.params.id));
   if (!result.success) {
     return res.status(404).json({ error: result.message });
@@ -691,7 +738,7 @@ app.post('/api/saved-meals/:id/remind', (req: Request, res: Response) => {
   res.json(result);
 });
 
-app.post('/api/saved-meals/bulk-remind', (req: Request, res: Response) => {
+app.post('/api/saved-meals/bulk-remind', requireAdmin, (req: Request, res: Response) => {
   const { ids } = req.body;
   const list = storage.getSavedMeals();
   let dispatched = 0;
@@ -717,7 +764,7 @@ app.post('/api/saved-meals/bulk-remind', (req: Request, res: Response) => {
   });
 });
 
-app.patch('/api/saved-meals/:id/status', (req: Request, res: Response) => {
+app.patch('/api/saved-meals/:id/status', requireAdmin, (req: Request, res: Response) => {
   const { status } = req.body;
   const list = storage.getSavedMeals();
   const item = list.find(r => r.id === req.params.id);
@@ -741,7 +788,7 @@ app.post('/api/catering/:id/quote', (req: Request, res: Response) => {
 // ==========================================
 // 10. DYNAMIC BUSINESS ANALYTICS
 // ==========================================
-app.get('/api/analytics', (req: Request, res: Response) => {
+app.get('/api/analytics', requireAdmin, (req: Request, res: Response) => {
   const analytics = storage.getAnalytics();
   res.json(analytics);
 });
@@ -749,17 +796,17 @@ app.get('/api/analytics', (req: Request, res: Response) => {
 // ==========================================
 // 11. STORE SETTINGS (REAL TIME PERSISTENCE)
 // ==========================================
-app.get('/api/settings', (req: Request, res: Response) => {
+app.get('/api/settings', requireAdmin, (req: Request, res: Response) => {
   const settings = storage.getSettings();
   res.json(settings);
 });
 
-app.put('/api/settings', (req: Request, res: Response) => {
+app.put('/api/settings', requireAdmin, (req: Request, res: Response) => {
   const updated = storage.updateSettings(req.body);
   res.json(updated);
 });
 
-app.patch('/api/settings', (req: Request, res: Response) => {
+app.patch('/api/settings', requireAdmin, (req: Request, res: Response) => {
   const updated = storage.updateSettings(req.body);
   res.json(updated);
 });
@@ -767,12 +814,12 @@ app.patch('/api/settings', (req: Request, res: Response) => {
 // ==========================================
 // 12. CUSTOMERS DIRECTORY (REAL TIME)
 // ==========================================
-app.get('/api/customers', (req: Request, res: Response) => {
+app.get('/api/customers', requireAdmin, (req: Request, res: Response) => {
   const customers = storage.getCustomers();
   res.json(customers);
 });
 
-app.post('/api/customers', (req: Request, res: Response) => {
+app.post('/api/customers', requireAdmin, (req: Request, res: Response) => {
   const { name, email, phone, companyName, segment, kitchenNotes } = req.body;
   if (!name || !email) {
     return res.status(400).json({ error: 'Name and email are required' });
