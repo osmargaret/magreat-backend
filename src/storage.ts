@@ -11,6 +11,7 @@ import type {
   MealPlanOrder,
   CustomerMessage,
   NewsletterSubscriber,
+  NewsletterCampaign,
   OrderStatus,
   CustomerSavedMeals,
   SavedMealItem,
@@ -474,6 +475,28 @@ export const storage = {
     });
     writeJsonFile('subscribers.json', list);
     return true;
+  },
+  deleteSubscriber(idOrEmail: string): boolean {
+    const list = this.getSubscribers();
+    const clean = idOrEmail.toLowerCase().trim();
+    const filtered = list.filter(s => s.id !== idOrEmail && s.email.toLowerCase() !== clean);
+    if (filtered.length === list.length) return false;
+    writeJsonFile('subscribers.json', filtered);
+    return true;
+  },
+  getNewsletterCampaigns(): NewsletterCampaign[] {
+    return readJsonFile<NewsletterCampaign[]>('newsletter-campaigns.json', []);
+  },
+  addNewsletterCampaign(data: Omit<NewsletterCampaign, 'id' | 'sentAt'>): NewsletterCampaign {
+    const list = this.getNewsletterCampaigns();
+    const newCamp: NewsletterCampaign = {
+      ...data,
+      id: `CAMP-${Date.now()}`,
+      sentAt: new Date().toISOString()
+    };
+    list.unshift(newCamp);
+    writeJsonFile('newsletter-campaigns.json', list);
+    return newCamp;
   },
 
   // Dynamic Analytics

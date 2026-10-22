@@ -124,6 +124,18 @@ export interface NewsletterSubscriber {
   subscribedAt: string;
 }
 
+export interface NewsletterCampaign {
+  id: string;
+  subject: string;
+  title: string;
+  content: string;
+  buttonText?: string;
+  buttonUrl?: string;
+  recipientCount: number;
+  status: 'Sent' | 'Failed' | 'Draft';
+  sentAt: string;
+}
+
 export interface SavedMealItem {
   foodId: number;
   name: string;

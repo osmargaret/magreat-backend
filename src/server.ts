@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { v2 as cloudinary } from 'cloudinary';
 import rateLimit from 'express-rate-limit';
 import { storage } from './storage.js';
-import { sendNewsletterNotification, sendContactMessageNotification } from './email.js';
+import { sendNewsletterNotification, sendContactMessageNotification, sendBroadcastNewsletter, testSmtpConnection } from './email.js';
 
 dotenv.config();
 
@@ -672,7 +672,7 @@ app.post('/api/messages/read-all', requireAdmin, (req: Request, res: Response) =
 });
 
 // ==========================================
-// 8. NEWSLETTER SUBSCRIPTION
+// 8. NEWSLETTER SUBSCRIPTION & BROADCAST CAMPAIGNS
 // ==========================================
 app.post('/api/newsletter', publicWriteLimit, (req: Request, res: Response) => {
   const { email } = req.body;
@@ -701,6 +701,101 @@ app.post('/api/newsletter', publicWriteLimit, (req: Request, res: Response) => {
     return res.json({ message: 'You are already subscribed to our newsletter! We updated your preferences.', alreadySubscribed: true });
   }
   res.status(201).json({ message: 'Thank you for subscribing to Ma’Great Taste updates!' });
+});
+
+// Admin: Get all subscribers
+app.get('/api/subscribers', requireAdmin, (req: Request, res: Response) => {
+  const subscribers = storage.getSubscribers();
+  res.json({
+    total: subscribers.length,
+    subscribers
+  });
+});
+
+// Admin: Remove subscriber
+app.delete('/api/subscribers/:id', requireAdmin, (req: Request, res: Response) => {
+  const success = storage.deleteSubscriber(String(req.params.id));
+  if (!success) {
+    return res.status(404).json({ error: 'Subscriber not found' });
+  }
+  res.json({ message: 'Subscriber removed successfully' });
+});
+
+// Admin: Get sent newsletter campaigns
+app.get('/api/newsletter/campaigns', requireAdmin, (req: Request, res: Response) => {
+  const campaigns = storage.getNewsletterCampaigns();
+  res.json(campaigns);
+});
+
+// Admin: Broadcast newsletter to subscribers (or send a single test email)
+app.post('/api/newsletter/broadcast', requireAdmin, async (req: Request, res: Response) => {
+  const { subject, title, content, buttonText, buttonUrl, testEmail } = req.body;
+
+  if (!subject || !title || !content) {
+    return res.status(400).json({ error: 'Subject, headline title, and message content are required.' });
+  }
+
+  try {
+    let recipientEmails: string[] = [];
+
+    if (testEmail && typeof testEmail === 'string' && testEmail.includes('@')) {
+      recipientEmails = [testEmail.toLowerCase().trim()];
+    } else {
+      const allSubscribers = storage.getSubscribers();
+      recipientEmails = allSubscribers.map(s => s.email.toLowerCase().trim());
+      // Deduplicate emails
+      recipientEmails = Array.from(new Set(recipientEmails));
+    }
+
+    if (recipientEmails.length === 0) {
+      return res.status(400).json({ error: 'No subscribers found to send this newsletter to.' });
+    }
+
+    const dispatchResult = await sendBroadcastNewsletter({
+      subject,
+      title,
+      content,
+      buttonText: buttonText || undefined,
+      buttonUrl: buttonUrl || undefined,
+      recipients: recipientEmails
+    });
+
+    let savedCampaign = null;
+    if (!testEmail) {
+      savedCampaign = storage.addNewsletterCampaign({
+        subject,
+        title,
+        content,
+        buttonText: buttonText || undefined,
+        buttonUrl: buttonUrl || undefined,
+        recipientCount: dispatchResult.sentCount,
+        status: dispatchResult.sentCount > 0 ? 'Sent' : 'Failed'
+      });
+    }
+
+    res.json({
+      success: dispatchResult.success,
+      isTest: !!testEmail,
+      testRecipient: testEmail || null,
+      totalRecipients: recipientEmails.length,
+      sentCount: dispatchResult.sentCount,
+      failedCount: dispatchResult.failedCount,
+      errors: dispatchResult.errors,
+      campaign: savedCampaign,
+      message: testEmail
+        ? `Test newsletter sent to ${testEmail}!`
+        : `Newsletter dispatched successfully to ${dispatchResult.sentCount} subscriber(s)!`
+    });
+  } catch (err: any) {
+    console.error('[NEWSLETTER BROADCAST ERROR]', err);
+    res.status(500).json({ error: err.message || 'Failed to broadcast newsletter' });
+  }
+});
+
+// Admin: Test SMTP live connection status
+app.get('/api/smtp/status', requireAdmin, async (req: Request, res: Response) => {
+  const result = await testSmtpConnection();
+  res.json(result);
 });
 
 // ==========================================

@@ -32,3 +32,5 @@ services:
         sync: false
       - key: ADMIN_EMAIL
         sync: false
+      - key: MAIL_SENDER_NAME
+        value: "Margaret O."
