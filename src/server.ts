@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { v2 as cloudinary } from 'cloudinary';
 import { storage } from './storage.js';
+import { sendNewsletterNotification, sendContactMessageNotification } from './email.js';
 
 dotenv.config();
 
@@ -587,12 +588,24 @@ app.post('/api/messages', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Name and message body are required' });
   }
 
+  const customerEmail = email || 'user@example.com';
   const newMsg = storage.addMessage({
     name,
-    email: email || 'user@example.com',
+    email: customerEmail,
     phone,
     subject: subject || 'New Website Inquiry',
     body
+  });
+
+  // 1. Deliver notification to hello@magreattaste.ng
+  sendContactMessageNotification({
+    name,
+    email: customerEmail,
+    phone,
+    subject,
+    body
+  }).catch(err => {
+    console.error('[EMAIL ERROR] Failed to send contact message email alert:', err);
   });
 
   res.status(201).json(newMsg);
@@ -620,9 +633,25 @@ app.post('/api/newsletter', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'A valid email address is required' });
   }
 
-  const created = storage.addSubscriber(email);
+  const cleanEmail = email.toLowerCase().trim();
+  const created = storage.addSubscriber(cleanEmail);
+
+  // 1. Deliver to Admin Dashboard Messages Inbox so admin sees it in real-time
+  storage.addMessage({
+    name: 'Newsletter Subscriber',
+    email: cleanEmail,
+    phone: '',
+    subject: `📬 Newsletter Subscription: ${cleanEmail}`,
+    body: `Customer subscribed to Ma'Great Taste seasonal menus, chef updates, and promotions via website newsletter input.\nSubscriber Email: ${cleanEmail}`
+  });
+
+  // 2. Deliver email notification to hello@magreattaste.ng
+  sendNewsletterNotification(cleanEmail).catch(err => {
+    console.error('[EMAIL ERROR] Failed to dispatch subscriber email alert:', err);
+  });
+
   if (!created) {
-    return res.json({ message: 'You are already subscribed to our newsletter!', alreadySubscribed: true });
+    return res.json({ message: 'You are already subscribed to our newsletter! We updated your preferences.', alreadySubscribed: true });
   }
   res.status(201).json({ message: 'Thank you for subscribing to Ma’Great Taste updates!' });
 });

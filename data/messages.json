@@ -1,1 +1,13 @@
-[]
+[
+  {
+    "name": "Newsletter Subscriber",
+    "email": "testsubscriber@example.com",
+    "phone": "",
+    "subject": "📬 Newsletter Subscription: testsubscriber@example.com",
+    "body": "Customer subscribed to Ma'Great Taste seasonal menus, chef updates, and promotions via website newsletter input.\nSubscriber Email: testsubscriber@example.com",
+    "id": "MSG-757",
+    "time": "Just now",
+    "unread": true,
+    "createdAt": "2026-10-22T11:43:51.341Z"
+  }
+]
