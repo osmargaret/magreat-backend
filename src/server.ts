@@ -58,19 +58,10 @@ cloudinary.config({
   agent: httpsAgent
 });
 
-// Enable CORS — restrict to known origins (configure via CORS_ORIGINS env var)
-const allowedOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(',')
-  : ['http://localhost:5173', 'http://localhost:5174'];
-
+// Enable CORS — allow frontend, admin dashboard, and production domains
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (curl, Render health checks, server-to-server)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      callback(new Error(`CORS: Origin ${origin} not allowed`));
-    },
+    origin: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
   })
