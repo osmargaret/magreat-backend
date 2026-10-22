@@ -1,0 +1,62 @@
+[
+  {
+    "id": "single-professional",
+    "name": "Single Professional",
+    "meals": "5 meals + 1 soup tub (1.5L)",
+    "price": 32500,
+    "description": "Perfect for busy executives who want wholesome home dinners ready in minutes without cooking or food waste.",
+    "features": [
+      "5 Individual Chef Meals per week",
+      "1 Bowl of Signature Soup (1.5L)",
+      "2 Portions of Grilled Protein Sides",
+      "Free Saturday Morning Dispatch"
+    ],
+    "color": "mint",
+    "active": true
+  },
+  {
+    "id": "couples-duo",
+    "name": "Couples & Duo",
+    "meals": "10 meals + 2 soup tubs (2.5L)",
+    "price": 58000,
+    "description": "Ideal for couples or roommates desiring varied, flavorful lunches and dinners without kitchen stress.",
+    "features": [
+      "10 Gourmet Meals per week",
+      "2 Traditional Soup Bowls (2.5L each)",
+      "4 Portions Assorted Meats / Fish",
+      "Custom Spice Level Selection"
+    ],
+    "color": "peach",
+    "active": true
+  },
+  {
+    "id": "family-feast",
+    "name": "Family Feast Plan",
+    "meals": "20 meals + 4 soup tubs (4L)",
+    "price": 115000,
+    "description": "Designed for households of 4–6. Abundant portions of authentic home-cooked food the whole family will love.",
+    "features": [
+      "20 Full Portion Meals per week",
+      "4 Large Soup & Stew Tubs (4L each)",
+      "Bulk Jollof & Fried Rice Trays",
+      "Dedicated Concierge WhatsApp Support"
+    ],
+    "color": "amber",
+    "active": true
+  },
+  {
+    "id": "fit-lean",
+    "name": "Fit & Lean Protein",
+    "meals": "7 high-protein macro bowls",
+    "price": 48000,
+    "description": "Tailored for fitness enthusiasts and weight watchers. High protein, clean cold-pressed oils, low glycemic index.",
+    "features": [
+      "7 High-Protein Low-Carb Bowls",
+      "Marinated Herb Chicken & Fish Cuts",
+      "Steamed Local Greens & Brown Rice",
+      "Calorie & Macro Label on Every Box"
+    ],
+    "color": "lavender",
+    "active": true
+  }
+]

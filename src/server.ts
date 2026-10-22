@@ -91,7 +91,37 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
+// Root rewrite middleware: seamlessly support clients calling /menu or /api/menu
+app.use((req, res, next) => {
+  if (!req.url.startsWith('/api') && (
+    req.url.startsWith('/menu') ||
+    req.url.startsWith('/orders') ||
+    req.url.startsWith('/catering') ||
+    req.url.startsWith('/mealplans') ||
+    req.url.startsWith('/meal-plans') ||
+    req.url.startsWith('/saved-meals') ||
+    req.url.startsWith('/discounts') ||
+    req.url.startsWith('/customers') ||
+    req.url.startsWith('/messages') ||
+    req.url.startsWith('/settings') ||
+    req.url.startsWith('/upload') ||
+    req.url.startsWith('/health')
+  )) {
+    req.url = '/api' + req.url;
+  }
+  next();
+});
+
 app.get('/api/health', (req: Request, res: Response) => {
+  res.json({
+    status: 'ok',
+    service: 'Ma’Great Taste API',
+    cloudinaryConfigured: true,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'ok',
     service: 'Ma’Great Taste API',
@@ -440,12 +470,12 @@ app.patch('/api/catering/:id/status', (req: Request, res: Response) => {
 // ==========================================
 // 6. MEAL PLANS & FREEZER STOCKING
 // ==========================================
-app.get('/api/mealplans/packages', (req: Request, res: Response) => {
+app.get(['/api/mealplans/packages', '/api/meal-plans/packages', '/api/mealplans', '/api/meal-plans'], (req: Request, res: Response) => {
   const packages = storage.getMealPackages();
   res.json(packages);
 });
 
-app.post('/api/mealplans/packages', (req: Request, res: Response) => {
+app.post(['/api/mealplans/packages', '/api/meal-plans/packages', '/api/mealplans', '/api/meal-plans'], (req: Request, res: Response) => {
   const { name, meals, price, description, features, color } = req.body;
   if (!name || !price) {
     return res.status(400).json({ error: 'Name and price are required' });
@@ -461,7 +491,7 @@ app.post('/api/mealplans/packages', (req: Request, res: Response) => {
   res.status(201).json(created);
 });
 
-app.put('/api/mealplans/packages/:id', (req: Request, res: Response) => {
+app.put(['/api/mealplans/packages/:id', '/api/meal-plans/packages/:id', '/api/mealplans/:id', '/api/meal-plans/:id'], (req: Request, res: Response) => {
   const updated = storage.updateMealPackage(String(req.params.id), req.body);
   if (!updated) {
     return res.status(404).json({ error: 'Meal package not found' });
@@ -469,7 +499,7 @@ app.put('/api/mealplans/packages/:id', (req: Request, res: Response) => {
   res.json(updated);
 });
 
-app.delete('/api/mealplans/packages/:id', (req: Request, res: Response) => {
+app.delete(['/api/mealplans/packages/:id', '/api/meal-plans/packages/:id', '/api/mealplans/:id', '/api/meal-plans/:id'], (req: Request, res: Response) => {
   const deleted = storage.deleteMealPackage(String(req.params.id));
   if (!deleted) {
     return res.status(404).json({ error: 'Meal package not found' });

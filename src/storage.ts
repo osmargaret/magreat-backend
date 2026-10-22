@@ -535,30 +535,39 @@ export const storage = {
   getMealPackages(): MealPlanPackage[] {
     const defaultPkgs: MealPlanPackage[] = [
       {
-        id: 'weekly-essentials',
-        name: 'Weekly Essentials',
-        meals: '10 meals',
-        price: 45000,
-        description: 'Ideal for busy professionals who want wholesome dinners throughout the working week.',
-        features: ['5 main dishes', '2 soup options', 'Packed & labelled', 'Reheating guide'],
+        id: 'single-professional',
+        name: 'Single Professional',
+        meals: '5 meals + 1 soup tub (1.5L)',
+        price: 32500,
+        description: 'Perfect for busy executives who want wholesome home dinners ready in minutes without cooking or food waste.',
+        features: ['5 Individual Chef Meals', '1 Bowl Signature Soup (1.5L)', '2 Portions Grilled Protein Sides', 'Free Saturday Dispatch'],
         color: 'mint'
       },
       {
-        id: 'family-freezer',
-        name: 'Family Freezer Pack',
-        meals: '20 meals',
-        price: 85000,
-        description: 'Generous family-sized portions ready to defrost and enjoy anytime.',
-        features: ['Family-sized portions', 'Mix of soups & rice', 'Freezer-ready packaging', 'Weekend deliveries'],
+        id: 'couples-duo',
+        name: 'Couples & Duo',
+        meals: '10 meals + 2 soup tubs (2.5L)',
+        price: 58000,
+        description: 'Ideal for couples or roommates desiring varied, flavorful lunches and dinners without kitchen stress.',
+        features: ['10 Gourmet Meals / week', '2 Traditional Soup Bowls (2.5L)', '4 Assorted Meats & Fish', 'Custom Spice Level'],
         color: 'peach'
       },
       {
-        id: 'monthly-stockup',
-        name: 'Monthly Stock-Up',
-        meals: '40 meals',
-        price: 165000,
-        description: 'Complete peace of mind. We stock your freezer with fresh rotations every week.',
-        features: ['4 weekly deliveries', 'Customisable menu', 'Priority delivery slots', 'Complimentary seasonal treat'],
+        id: 'family-feast',
+        name: 'Family Feast Plan',
+        meals: '20 meals + 4 soup tubs (4L)',
+        price: 115000,
+        description: 'Designed for households of 4–6. Abundant portions of authentic home-cooked food the whole family will love.',
+        features: ['20 Full Portion Meals', '4 Large Soup Tubs (4L each)', 'Bulk Jollof & Fried Rice Trays', 'Dedicated WhatsApp Concierge'],
+        color: 'amber'
+      },
+      {
+        id: 'fit-lean',
+        name: 'Fit & Lean Protein',
+        meals: '7 high-protein macro bowls',
+        price: 48000,
+        description: 'Tailored for fitness enthusiasts and weight watchers. High protein, clean cold-pressed oils, low glycemic index.',
+        features: ['7 High-Protein Low-Carb Bowls', 'Marinated Herb Chicken & Fish', 'Local Greens & Brown Rice', 'Macro Label on Every Box'],
         color: 'lavender'
       }
     ];
