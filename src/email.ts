@@ -393,3 +393,167 @@ export async function sendBroadcastNewsletter(options: BroadcastOptions): Promis
   };
 }
 
+/**
+ * Dispatch official Catering Quotation Email to customer
+ */
+export async function sendCateringQuotationEmail(lead: {
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  eventDate?: string;
+  guestCount?: number;
+  location?: string;
+  notes?: string;
+  dietaryRequirements?: string;
+}, quoteAmount: number, menuNotes: string): Promise<{ success: boolean; message: string }> {
+  const mailer = getTransporter();
+  if (!mailer) {
+    return { success: false, message: 'SMTP mailer is not configured.' };
+  }
+
+  const subject = `Official Catering Quotation from Ma'Great Taste Restaurant (₦${Number(quoteAmount).toLocaleString()})`;
+  const formattedQuote = `₦${Number(quoteAmount).toLocaleString()}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Catering Quotation</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px 10px; color: #1e293b;">
+      <div style="max-width: 620px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 14px rgba(0,0,0,0.06);">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #182838 0%, #0e1722 100%); padding: 34px 28px; text-align: center; border-bottom: 3px solid #fed485;">
+          <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px;">Ma'Great Taste</h1>
+          <p style="margin: 6px 0 0; font-size: 13px; color: #fed485; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Chef Margaret &bull; Luxury Catering Services</p>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 32px 28px;">
+          <h2 style="font-size: 19px; color: #182838; margin: 0 0 12px; font-weight: 700;">Hello ${lead.customerName || 'Valued Client'},</h2>
+          <p style="font-size: 14px; color: #475569; line-height: 1.6; margin: 0 0 20px;">
+            Thank you for reaching out to Ma'Great Taste. We have carefully reviewed your event catering requirements and are delighted to present your official bespoke quotation below.
+          </p>
+
+          <!-- Quotation Box -->
+          <div style="background: #fffbeb; border: 2px dashed #f59e0b; border-radius: 12px; padding: 22px; text-align: center; margin-bottom: 24px;">
+            <span style="font-size: 12px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.8px;">Total Estimated Quotation</span>
+            <div style="font-size: 32px; font-weight: 800; color: #c6381e; margin: 6px 0;">${formattedQuote}</div>
+            <span style="font-size: 12px; color: #78350f;">Includes premium ingredients, preparation, and luxury service logistics</span>
+          </div>
+
+          <!-- Event Details -->
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px;">
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: 10px 0; color: #64748b; font-weight: 600;">Expected Date:</td>
+              <td style="padding: 10px 0; font-weight: 700; color: #1e293b; text-align: right;">${lead.eventDate || 'To be confirmed'}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: 10px 0; color: #64748b; font-weight: 600;">Guest Count:</td>
+              <td style="padding: 10px 0; font-weight: 700; color: #1e293b; text-align: right;">${lead.guestCount || 'Flexible'} guests</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: 10px 0; color: #64748b; font-weight: 600;">Location / Venue:</td>
+              <td style="padding: 10px 0; font-weight: 700; color: #1e293b; text-align: right;">${lead.location || 'Lagos, Nigeria'}</td>
+            </tr>
+            ${lead.dietaryRequirements ? `
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: 10px 0; color: #64748b; font-weight: 600;">Dietary Requirements:</td>
+              <td style="padding: 10px 0; font-weight: 700; color: #d97706; text-align: right;">${lead.dietaryRequirements}</td>
+            </tr>
+            ` : ''}
+          </table>
+
+          ${menuNotes ? `
+          <div style="background: #f8fafc; border-left: 4px solid #182838; padding: 14px 16px; border-radius: 4px; margin-bottom: 24px;">
+            <strong style="display: block; font-size: 13px; color: #182838; margin-bottom: 4px;">Chef's Proposed Menu & Logistics Notes:</strong>
+            <p style="font-size: 13px; color: #334155; line-height: 1.5; margin: 0; white-space: pre-wrap;">${menuNotes}</p>
+          </div>
+          ` : ''}
+
+          <div style="text-align: center; margin: 28px 0 10px;">
+            <a href="https://wa.me/2349059271973?text=${encodeURIComponent(`Hello Chef Margaret, I received the quotation (${formattedQuote}) for my event on ${lead.eventDate || 'my chosen date'} and would like to confirm!`)}"
+               style="display: inline-block; background: #25d366; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 14px 28px; border-radius: 8px; box-shadow: 0 4px 10px rgba(37,211,102,0.3);">
+              💬 Confirm or Discuss on WhatsApp
+            </a>
+          </div>
+
+          <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 18px 0 0;">
+            Or reply directly to this email to adjust the menu, schedule a tasting, or confirm your booking.
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #182838; padding: 22px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #233548;">
+          <p style="margin: 0 0 4px; font-weight: 700; color: #fed485;">Ma'Great Taste Restaurant &amp; Events</p>
+          <p style="margin: 0; color: #cbd5e1;">Lekki Phase 1, Lagos, Nigeria &bull; Hotlines: +234 905 927 1973</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    await mailer.sendMail({
+      from: SENDER_EMAIL,
+      to: lead.customerEmail,
+      bcc: ADMIN_EMAIL,
+      subject,
+      html
+    });
+    console.log(`[CATERING QUOTE EMAIL] Successfully dispatched quote to ${lead.customerEmail}`);
+    return { success: true, message: `Quotation email successfully sent to ${lead.customerEmail}!` };
+  } catch (err: any) {
+    console.error(`[CATERING QUOTE EMAIL ERROR]`, err);
+    return { success: false, message: `Failed to deliver email: ${err.message}` };
+  }
+}
+
+/**
+ * Dispatch alert to kitchen admin when a new catering enquiry arrives
+ */
+export async function sendCateringEnquiryAlert(lead: {
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  eventDate?: string;
+  guestCount?: number;
+  location?: string;
+  budget?: string;
+  notes?: string;
+  dietaryRequirements?: string;
+}): Promise<void> {
+  const mailer = getTransporter();
+  if (!mailer) return;
+
+  const subject = `🔔 New Catering Enquiry: ${lead.customerName} (${lead.guestCount || 'Flexible'} guests)`;
+  const html = `
+    <div style="font-family: sans-serif; max-width: 540px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+      <h2 style="color: #c6381e; margin-top: 0;">New Catering Lead Received!</h2>
+      <p><b>Client:</b> ${lead.customerName} (${lead.customerEmail})</p>
+      <p><b>Phone:</b> ${lead.customerPhone || 'Not specified'}</p>
+      <p><b>Guests:</b> ${lead.guestCount || 'Flexible'} guests</p>
+      <p><b>Event Date:</b> ${lead.eventDate || 'Not specified'}</p>
+      <p><b>Location:</b> ${lead.location || 'Lagos'}</p>
+      <p><b>Budget:</b> ${lead.budget || 'Negotiable'}</p>
+      ${lead.dietaryRequirements ? `<p><b>Dietary:</b> ${lead.dietaryRequirements}</p>` : ''}
+      ${lead.notes ? `<p><b>Special Notes:</b> ${lead.notes}</p>` : ''}
+      <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;" />
+      <p style="font-size: 12px; color: #64748b;">Log in to Ma'Great Taste Admin Studio to send an official quote.</p>
+    </div>
+  `;
+
+  try {
+    await mailer.sendMail({
+      from: SENDER_EMAIL,
+      to: ADMIN_EMAIL,
+      subject,
+      html
+    });
+  } catch (err) {
+    console.error('[CATERING ALERT ERROR]', err);
+  }
+}
+
+
