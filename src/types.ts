@@ -116,6 +116,9 @@ export interface CustomerMessage {
   time: string;
   unread: boolean;
   createdAt: string;
+  reply?: string;
+  repliedAt?: string;
+  sender?: 'customer' | 'admin';
 }
 
 export interface NewsletterSubscriber {

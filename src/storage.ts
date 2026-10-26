@@ -458,6 +458,24 @@ export const storage = {
     }
     this.saveMessages(list);
   },
+  replyToMessage(id: string, replyText: string): CustomerMessage | null {
+    const list = this.getMessages();
+    const msg = list.find(m => m.id === id);
+    if (!msg) return null;
+    msg.reply = replyText;
+    msg.repliedAt = new Date().toISOString();
+    msg.unread = false;
+    this.saveMessages(list);
+    return msg;
+  },
+  getCustomerOrders(email: string): Order[] {
+    const normalized = email.toLowerCase().trim();
+    return this.getOrders().filter(o => o.customerEmail?.toLowerCase().trim() === normalized);
+  },
+  getCustomerMessages(email: string): CustomerMessage[] {
+    const normalized = email.toLowerCase().trim();
+    return this.getMessages().filter(m => m.email?.toLowerCase().trim() === normalized);
+  },
 
   // Newsletter
   getSubscribers(): NewsletterSubscriber[] {

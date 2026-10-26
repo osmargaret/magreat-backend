@@ -674,6 +674,55 @@ app.post('/api/messages/read-all', requireAdmin, (req: Request, res: Response) =
   res.json({ message: 'All messages marked as read' });
 });
 
+// Admin: Reply to Customer Message
+app.post('/api/messages/:id/reply', requireAdmin, (req: Request, res: Response) => {
+  const { reply } = req.body;
+  if (!reply) {
+    return res.status(400).json({ error: 'Reply text is required' });
+  }
+  const updated = storage.replyToMessage(String(req.params.id), reply);
+  if (!updated) {
+    return res.status(404).json({ error: 'Message not found' });
+  }
+  res.json({ message: 'Reply saved and delivered', item: updated });
+});
+
+// Customer Dashboard: Fetch Orders for Logged-in Customer
+app.get('/api/customer/orders', (req: Request, res: Response) => {
+  const email = String(req.query.email || '').trim();
+  if (!email) {
+    return res.status(400).json({ error: 'Customer email query parameter is required' });
+  }
+  const orders = storage.getCustomerOrders(email);
+  res.json(orders);
+});
+
+// Customer Dashboard: Fetch Concierge Messages & Replies
+app.get('/api/customer/messages', (req: Request, res: Response) => {
+  const email = String(req.query.email || '').trim();
+  if (!email) {
+    return res.status(400).json({ error: 'Customer email query parameter is required' });
+  }
+  const messages = storage.getCustomerMessages(email);
+  res.json(messages);
+});
+
+// Customer Dashboard: Send Concierge Message to Kitchen
+app.post('/api/customer/messages', publicWriteLimit, (req: Request, res: Response) => {
+  const { name, email, phone, message, subject } = req.body;
+  if (!email || !message) {
+    return res.status(400).json({ error: 'Email and message are required' });
+  }
+  const created = storage.addMessage({
+    name: name || 'Valued Customer',
+    email,
+    phone: phone || '',
+    subject: subject || 'Customer Concierge Chat',
+    body: message
+  });
+  res.status(201).json(created);
+});
+
 // ==========================================
 // 8. NEWSLETTER SUBSCRIPTION & BROADCAST CAMPAIGNS
 // ==========================================
