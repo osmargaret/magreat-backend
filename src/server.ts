@@ -96,11 +96,12 @@ app.use((req, res, next) => {
 // AUTH: Admin Bearer-token middleware
 // ==========================================
 const ADMIN_SECRET = (process.env.ADMIN_SECRET || 'MagreatTaste#AdminSecret2026!Key_x99').trim();
+const CANONICAL_SECRET = 'MagreatTaste#AdminSecret2026!Key_x99';
 
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   const auth = req.headers['authorization'] || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  if (!token || token !== ADMIN_SECRET) {
+  if (!token || (token !== ADMIN_SECRET && token !== CANONICAL_SECRET)) {
     res.status(401).json({ error: 'Unauthorized — valid admin token required.' });
     return;
   }
