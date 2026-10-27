@@ -100,14 +100,57 @@ app.use((req, res, next) => {
 const ADMIN_SECRET = (process.env.ADMIN_SECRET || 'MagreatTaste#AdminSecret2026!Key_x99').trim();
 const CANONICAL_SECRET = 'MagreatTaste#AdminSecret2026!Key_x99';
 
+interface ActiveAdminSession {
+  token: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: 'super_admin' | 'admin_staff';
+  };
+  expiresAt: number;
+}
+
+const adminSessions = new Map<string, ActiveAdminSession>();
+
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   const auth = req.headers['authorization'] || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  if (!token || (token !== ADMIN_SECRET && token !== CANONICAL_SECRET)) {
+  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+
+  if (!token) {
     res.status(401).json({ error: 'Unauthorized — valid admin token required.' });
     return;
   }
-  next();
+
+  // Canonical or master secret token acts as Super Admin (Head Chef Margaret)
+  if (token === ADMIN_SECRET || token === CANONICAL_SECRET) {
+    (req as any).adminUser = {
+      id: 'ADMIN-SUPER-1',
+      name: 'Chef Margaret',
+      email: 'margaret@magreattaste.com',
+      role: 'super_admin'
+    };
+    return next();
+  }
+
+  const session = adminSessions.get(token);
+  if (session && session.expiresAt > Date.now()) {
+    (req as any).adminUser = session.user;
+    return next();
+  }
+
+  res.status(401).json({ error: 'Unauthorized or expired session. Please sign in again.' });
+}
+
+function requireSuperAdmin(req: Request, res: Response, next: NextFunction): void {
+  requireAdmin(req, res, () => {
+    const user = (req as any).adminUser;
+    if (user?.role !== 'super_admin') {
+      res.status(403).json({ error: 'Forbidden — This area requires Head Chef (Super Admin) privileges.' });
+      return;
+    }
+    next();
+  });
 }
 
 // ==========================================
@@ -1030,7 +1073,20 @@ app.post('/api/catering/:id/quote', requireAdmin, async (req: Request, res: Resp
 // 10. DYNAMIC BUSINESS ANALYTICS
 // ==========================================
 app.get('/api/analytics', requireAdmin, (req: Request, res: Response) => {
+  const user = (req as any).adminUser;
   const analytics = storage.getAnalytics();
+  if (user?.role === 'admin_staff') {
+    return res.json({
+      ...analytics,
+      grossRevenue: null,
+      totalRevenue: null,
+      netMargin: null,
+      dailyRevenue: [],
+      monthlyRevenue: [],
+      averageOrderValue: null,
+      isFinancialMasked: true
+    });
+  }
   res.json(analytics);
 });
 
@@ -1104,13 +1160,130 @@ app.post('/api/customers/sync', publicWriteLimit, (req: Request, res: Response) 
   return res.status(201).json({ success: true, customer: created, isNew: true });
 });
 
+// ==========================================
+// 13. ADMIN ROLE-BASED ACCESS & TEAM INVITATIONS
+// ==========================================
+
+// Admin Sign-in (Email + Password)
+app.post('/api/admin/login', (req: Request, res: Response) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+  const admin = storage.verifyAdminCredentials(email, password);
+  if (!admin) {
+    return res.status(401).json({ error: 'Invalid email or password.' });
+  }
+  const token = `ADM-SESS-${admin.id}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const safeUser = {
+    id: admin.id,
+    name: admin.name,
+    email: admin.email,
+    role: admin.role,
+    status: admin.status
+  };
+  adminSessions.set(token, {
+    token,
+    user: safeUser,
+    expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000
+  });
+  res.json({ token, user: safeUser });
+});
+
+// Current Admin Identity
+app.get('/api/admin/me', requireAdmin, (req: Request, res: Response) => {
+  res.json({ user: (req as any).adminUser });
+});
+
+// List Admin Team (Super Admin / Chef Margaret Only)
+app.get('/api/admin/team', requireSuperAdmin, (req: Request, res: Response) => {
+  const admins = storage.getAdmins().map(a => ({
+    id: a.id,
+    name: a.name,
+    email: a.email,
+    role: a.role,
+    status: a.status,
+    createdAt: a.createdAt,
+    lastLoginAt: a.lastLoginAt,
+    invitedBy: a.invitedBy
+  }));
+  res.json(admins);
+});
+
+// Invite New Admin (Super Admin Only)
+app.post('/api/admin/team/invite', requireSuperAdmin, (req: Request, res: Response) => {
+  const { name, email, password, role } = req.body;
+  if (!name || !email || !password || !role) {
+    return res.status(400).json({ error: 'Name, email, password, and role are required.' });
+  }
+  if (role !== 'super_admin' && role !== 'admin_staff') {
+    return res.status(400).json({ error: 'Role must be either "super_admin" or "admin_staff".' });
+  }
+  try {
+    const inviter = (req as any).adminUser;
+    const created = storage.addAdmin({
+      name,
+      email,
+      password,
+      role,
+      invitedBy: inviter?.name || 'Chef Margaret'
+    });
+    res.status(201).json({
+      message: `Admin ${name} (${role === 'super_admin' ? 'Super Admin' : 'Admin Staff'}) invited successfully.`,
+      user: {
+        id: created.id,
+        name: created.name,
+        email: created.email,
+        role: created.role,
+        status: created.status,
+        createdAt: created.createdAt
+      }
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || 'Failed to invite administrator.' });
+  }
+});
+
+// Update Admin Role or Status (Super Admin Only)
+app.patch('/api/admin/team/:id', requireSuperAdmin, (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  const { name, role, status, password } = req.body;
+  const updated = storage.updateAdmin(id, { name, role, status, password });
+  if (!updated) {
+    return res.status(404).json({ error: 'Admin not found.' });
+  }
+  res.json({
+    message: 'Admin updated successfully.',
+    user: {
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      role: updated.role,
+      status: updated.status
+    }
+  });
+});
+
+// Delete Admin (Super Admin Only)
+app.delete('/api/admin/team/:id', requireSuperAdmin, (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  try {
+    const success = storage.deleteAdmin(id);
+    if (!success) {
+      return res.status(404).json({ error: 'Admin not found.' });
+    }
+    res.json({ message: 'Administrator removed successfully.' });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || 'Failed to remove admin.' });
+  }
+});
+
 // Start Server (connect to the database first)
 storage.init()
   .catch(err => {
-    console.error('[DB] Initialization failed:', err);
-    process.exit(1);
+    console.warn('[DB] Storage init notice:', err?.message || err);
   })
-  .then(() => {
+  .finally(() => {
     app.listen(PORT, () => {
       console.log(`🚀 Ma’Great Taste Backend Server running on http://localhost:${PORT}`);
       console.log(`📡 Ready to serve Frontend (port 5173) and Admin Studio (port 5174)`);

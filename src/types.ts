@@ -217,3 +217,17 @@ export interface AcademyApplication {
   status: 'Pending Review' | 'Admitted' | 'Contacted' | 'Enrolled' | 'Cancelled';
   appliedAt: string;
 }
+
+export type AdminRole = 'super_admin' | 'admin_staff';
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  passwordHash: string;
+  role: AdminRole;
+  status: 'Active' | 'Suspended';
+  createdAt: string;
+  lastLoginAt?: string;
+  invitedBy?: string;
+}

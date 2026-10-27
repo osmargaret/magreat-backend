@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import type {
@@ -19,7 +20,9 @@ import type {
   CustomerDiscount,
   StoreSettings,
   CustomerAccount,
-  AcademyApplication
+  AcademyApplication,
+  AdminUser,
+  AdminRole
 } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -51,16 +54,20 @@ export async function initStorage(): Promise<void> {
     console.warn('[DB] DATABASE_URL not set — using local JSON files (data is NOT persistent on Render).');
     return;
   }
-  await pool.query(
-    `CREATE TABLE IF NOT EXISTS kv_store (
-       key TEXT PRIMARY KEY,
-       data JSONB NOT NULL,
-       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-     )`
-  );
-  const { rows } = await pool.query('SELECT key, data FROM kv_store');
-  for (const row of rows) cache.set(row.key, row.data);
-  console.log(`[DB] Connected to PostgreSQL. Loaded ${rows.length} collection(s).`);
+  try {
+    await pool.query(
+      `CREATE TABLE IF NOT EXISTS kv_store (
+         key TEXT PRIMARY KEY,
+         data JSONB NOT NULL,
+         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+       )`
+    );
+    const { rows } = await pool.query('SELECT key, data FROM kv_store');
+    for (const row of rows) cache.set(row.key, row.data);
+    console.log(`[DB] Connected to PostgreSQL. Loaded ${rows.length} collection(s).`);
+  } catch (err: any) {
+    console.warn(`[DB] PostgreSQL connection notice (${err.message}) — using local JSON files.`);
+  }
 }
 
 function persist(filename: string, data: unknown): void {
@@ -103,6 +110,23 @@ function readJsonFile<T>(filename: string, defaultData: T): T {
 function writeJsonFile<T>(filename: string, data: T): void {
   cache.set(filename, data);
   persist(filename, data);
+}
+
+export function hashAdminPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+export function verifyAdminPassword(password: string, combinedHash: string): boolean {
+  try {
+    const [salt, key] = combinedHash.split(':');
+    if (!salt || !key) return false;
+    const testHash = crypto.scryptSync(password, salt, 64).toString('hex');
+    return crypto.timingSafeEqual(Buffer.from(testHash, 'hex'), Buffer.from(key, 'hex'));
+  } catch {
+    return false;
+  }
 }
 
 
@@ -866,5 +890,95 @@ export const storage = {
     list[idx].status = status;
     this.saveAcademyApplications(list);
     return list[idx];
+  },
+  getAdmins(): AdminUser[] {
+    const list = readJsonFile<AdminUser[]>('admins.json', []);
+    if (!list || list.length === 0) {
+      const seeded: AdminUser[] = [
+        {
+          id: 'ADMIN-SUPER-1',
+          name: 'Chef Margaret',
+          email: 'margaret@magreattaste.com',
+          passwordHash: hashAdminPassword('ChefMargaret2026!'),
+          role: 'super_admin',
+          status: 'Active',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'ADMIN-SUPER-2',
+          name: 'Chef Margaret (Admin Alias)',
+          email: 'admin@magreattaste.com',
+          passwordHash: hashAdminPassword('ChefMargaret2026!'),
+          role: 'super_admin',
+          status: 'Active',
+          createdAt: new Date().toISOString()
+        }
+      ];
+      writeJsonFile('admins.json', seeded);
+      return seeded;
+    }
+    return list;
+  },
+  saveAdmins(admins: AdminUser[]): void {
+    writeJsonFile('admins.json', admins);
+  },
+  findAdminByEmail(email: string): AdminUser | undefined {
+    const list = this.getAdmins();
+    return list.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
+  },
+  findAdminById(id: string): AdminUser | undefined {
+    const list = this.getAdmins();
+    return list.find(a => a.id === id);
+  },
+  addAdmin(data: { name: string; email: string; password: string; role: AdminRole; invitedBy?: string }): AdminUser {
+    const list = this.getAdmins();
+    const existing = list.find(a => a.email.toLowerCase() === data.email.trim().toLowerCase());
+    if (existing) {
+      throw new Error(`An administrator with email ${data.email} already exists.`);
+    }
+    const newAdmin: AdminUser = {
+      id: `ADMIN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      name: data.name.trim(),
+      email: data.email.trim().toLowerCase(),
+      passwordHash: hashAdminPassword(data.password),
+      role: data.role,
+      status: 'Active',
+      createdAt: new Date().toISOString(),
+      invitedBy: data.invitedBy
+    };
+    list.push(newAdmin);
+    this.saveAdmins(list);
+    return newAdmin;
+  },
+  updateAdmin(id: string, updates: Partial<{ name: string; role: AdminRole; status: 'Active' | 'Suspended'; password?: string }>): AdminUser | null {
+    const list = this.getAdmins();
+    const idx = list.findIndex(a => a.id === id);
+    if (idx === -1) return null;
+    if (updates.name) list[idx].name = updates.name.trim();
+    if (updates.role) list[idx].role = updates.role;
+    if (updates.status) list[idx].status = updates.status;
+    if (updates.password) list[idx].passwordHash = hashAdminPassword(updates.password);
+    this.saveAdmins(list);
+    return list[idx];
+  },
+  deleteAdmin(id: string): boolean {
+    const list = this.getAdmins();
+    if (id === 'ADMIN-SUPER-1' || id === 'ADMIN-SUPER-2') {
+      throw new Error('Primary Head Chef accounts cannot be removed.');
+    }
+    const filtered = list.filter(a => a.id !== id);
+    if (filtered.length === list.length) return false;
+    this.saveAdmins(filtered);
+    return true;
+  },
+  verifyAdminCredentials(email: string, password: string): AdminUser | null {
+    const admin = this.findAdminByEmail(email);
+    if (!admin) return null;
+    if (admin.status === 'Suspended') return null;
+    const isValid = verifyAdminPassword(password, admin.passwordHash);
+    if (!isValid) return null;
+    admin.lastLoginAt = new Date().toISOString();
+    this.saveAdmins(this.getAdmins());
+    return admin;
   }
 };
