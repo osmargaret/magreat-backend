@@ -473,7 +473,7 @@ export async function sendCateringQuotationEmail(lead: {
           ` : ''}
 
           <div style="text-align: center; margin: 28px 0 10px;">
-            <a href="https://wa.me/2349059271973?text=${encodeURIComponent(`Hello Chef Margaret, I received the quotation (${formattedQuote}) for my event on ${lead.eventDate || 'my chosen date'} and would like to confirm!`)}"
+            <a href="https://wa.me/2349058271973?text=${encodeURIComponent(`Hello Chef Margaret, I received the quotation (${formattedQuote}) for my event on ${lead.eventDate || 'my chosen date'} and would like to confirm!`)}"
                style="display: inline-block; background: #25d366; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 14px 28px; border-radius: 8px; box-shadow: 0 4px 10px rgba(37,211,102,0.3);">
               💬 Confirm or Discuss on WhatsApp
             </a>
@@ -487,7 +487,7 @@ export async function sendCateringQuotationEmail(lead: {
         <!-- Footer -->
         <div style="background: #182838; padding: 22px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #233548;">
           <p style="margin: 0 0 4px; font-weight: 700; color: #fed485;">Ma'Great Taste Restaurant &amp; Events</p>
-          <p style="margin: 0; color: #cbd5e1;">Lekki Phase 1, Lagos, Nigeria &bull; Hotlines: +234 905 927 1973</p>
+          <p style="margin: 0; color: #cbd5e1;">Lekki Phase 1, Lagos, Nigeria &bull; Hotlines: +234 905 827 1973</p>
         </div>
       </div>
     </body>
@@ -555,5 +555,173 @@ export async function sendCateringEnquiryAlert(lead: {
     console.error('[CATERING ALERT ERROR]', err);
   }
 }
+
+/**
+ * Sends an email notification to the customer when Chef Margaret replies to their inquiry/chat
+ */
+export async function sendCustomerMessageReplyEmail(data: {
+  customerName: string;
+  customerEmail: string;
+  originalMessage: string;
+  replyText: string;
+  subject?: string;
+}): Promise<boolean> {
+  const mailer = getTransporter();
+  const timestamp = new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' });
+
+  if (!mailer) {
+    console.log(`[CUSTOMER REPLY - RECORDED] Reply to ${data.customerName} (${data.customerEmail}): "${data.replyText}". (Configure SMTP for live transmission)`);
+    return false;
+  }
+
+  const subject = `Chef Margaret replied: ${data.subject || 'Your Ma\'Great Taste Inquiry'}`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8" /></head>
+    <body style="margin: 0; padding: 20px 0; background-color: #f8fafc; font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <div style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 14px rgba(0,0,0,0.06);">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #182838 0%, #244661 100%); padding: 26px 24px; text-align: center;">
+          <h1 style="margin: 0; font-size: 20px; font-weight: 800; color: #fed485; letter-spacing: 0.5px;">MA' GREAT TASTE</h1>
+          <p style="margin: 6px 0 0; font-size: 13px; color: #cbd5e1;">Chef &amp; Kitchen Concierge Desk</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 28px 24px;">
+          <p style="font-size: 15px; color: #1e293b; margin-top: 0;">Hello <strong>${data.customerName}</strong>,</p>
+          <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+            Chef Margaret from the Ma'Great Taste kitchen team has reviewed your message and responded:
+          </p>
+
+          <!-- Chef Margaret Reply Bubble -->
+          <div style="background: #fff8f0; border: 1px solid #fed485; border-left: 4px solid #c6381e; border-radius: 8px; padding: 18px; margin: 20px 0;">
+            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 13px; font-weight: 800; color: #c6381e; text-transform: uppercase; letter-spacing: 0.6px;">Chef Margaret &bull; Kitchen Team</span>
+            </div>
+            <p style="font-size: 15px; color: #182838; line-height: 1.6; margin: 0; white-space: pre-wrap; font-weight: 500;">${data.replyText}</p>
+            <p style="font-size: 11px; color: #94a3b8; margin: 10px 0 0; text-align: right;">${timestamp}</p>
+          </div>
+
+          <!-- Original Message Accordion -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin: 16px 0;">
+            <p style="margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: #64748b; font-weight: 700;">Your Original Note</p>
+            <p style="margin: 0; font-size: 13px; color: #64748b; line-height: 1.5; font-style: italic;">"${data.originalMessage}"</p>
+          </div>
+
+          <!-- CTAs -->
+          <div style="text-align: center; margin: 26px 0 10px;">
+            <a href="https://wa.me/2349058271973?text=${encodeURIComponent(`Hello Chef Margaret! I am following up on your reply regarding: "${data.replyText.slice(0, 50)}..."`)}"
+               style="display: inline-block; background: #25d366; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 24px; border-radius: 8px; box-shadow: 0 3px 8px rgba(37,211,102,0.25);">
+              💬 Reply on WhatsApp (+234 905 827 1973)
+            </a>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #182838; padding: 18px 24px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #233548;">
+          <p style="margin: 0 0 4px; font-weight: 700; color: #fed485;">Ma'Great Taste Restaurant &amp; Events</p>
+          <p style="margin: 0; color: #cbd5e1;">Lekki Phase 1, Lagos, Nigeria &bull; Hotlines: +234 905 827 1973</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    await mailer.sendMail({
+      from: SENDER_EMAIL,
+      to: data.customerEmail,
+      replyTo: SENDER_EMAIL,
+      subject,
+      html
+    });
+    console.log(`[CUSTOMER REPLY - SUCCESS] Dispatched chef reply email to ${data.customerEmail}`);
+    return true;
+  } catch (err: any) {
+    console.error(`[CUSTOMER REPLY - ERROR] Failed to send email to ${data.customerEmail}:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Sends an order status update email to the customer's phone/inbox
+ */
+export async function sendOrderStatusUpdateEmail(order: {
+  id: string;
+  customerName: string;
+  customerEmail?: string;
+  status: string;
+  total: number;
+  deliveryAddress?: string;
+}): Promise<boolean> {
+  const mailer = getTransporter();
+  if (!mailer || !order.customerEmail || !order.customerEmail.includes('@')) return false;
+
+  const statusEmojis: Record<string, string> = {
+    'Preparing': '🍳',
+    'Ready': '🍱',
+    'Out for Delivery': '🚴',
+    'Delivered': '🎉',
+    'Cancelled': '⚠️'
+  };
+
+  const emoji = statusEmojis[order.status] || '🍲';
+  const subject = `${emoji} Order Update #${order.id}: Status is now ${order.status}`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8" /></head>
+    <body style="margin: 0; padding: 20px 0; background-color: #f8fafc; font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <div style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 14px rgba(0,0,0,0.06);">
+        <div style="background: linear-gradient(135deg, #182838 0%, #244661 100%); padding: 24px; text-align: center;">
+          <h1 style="margin: 0; font-size: 20px; font-weight: 800; color: #fed485;">MA' GREAT TASTE</h1>
+          <p style="margin: 6px 0 0; font-size: 13px; color: #cbd5e1;">Live Feast Tracker &bull; Order #${order.id}</p>
+        </div>
+        <div style="padding: 26px 24px;">
+          <p style="font-size: 15px; color: #1e293b; margin-top: 0;">Hello <strong>${order.customerName}</strong>,</p>
+          <div style="background: #fdf2f0; border-left: 4px solid #c6381e; padding: 16px; border-radius: 6px; margin: 18px 0;">
+            <p style="margin: 0; font-size: 16px; font-weight: 700; color: #c6381e;">${emoji} Order Status: ${order.status}</p>
+            <p style="margin: 6px 0 0; font-size: 13px; color: #475569;">
+              ${order.status === 'Preparing' ? 'Our kitchen team has fired up the burners and is preparing your meal with care.' :
+                order.status === 'Ready' ? 'Your dishes are freshly packaged and staged for temperature-controlled dispatch.' :
+                order.status === 'Out for Delivery' ? 'Your feast is en route with our dispatch rider to your address!' :
+                order.status === 'Delivered' ? 'Delivered fresh to your table. We hope every bite is delicious!' :
+                `Your order status has been updated to ${order.status}.`}
+            </p>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 13px;">
+            <tr><td style="padding: 6px 0; color: #64748b;">Total Amount:</td><td style="padding: 6px 0; font-weight: 700; text-align: right; color: #1e293b;">₦${order.total.toLocaleString()}</td></tr>
+            ${order.deliveryAddress ? `<tr><td style="padding: 6px 0; color: #64748b;">Delivery Destination:</td><td style="padding: 6px 0; text-align: right; color: #1e293b;">${order.deliveryAddress}</td></tr>` : ''}
+          </table>
+          <div style="text-align: center; margin-top: 24px;">
+            <a href="https://wa.me/2349058271973?text=${encodeURIComponent(`Hello Dispatch Team! I am checking on my Order #${order.id}`)}"
+               style="display: inline-block; background: #25d366; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 11px 22px; border-radius: 6px;">
+              💬 Track or Contact Rider on WhatsApp (+234 905 827 1973)
+            </a>
+          </div>
+        </div>
+        <div style="background: #182838; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8;">
+          Ma'Great Taste &bull; Lagos, Nigeria &bull; +234 905 827 1973
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    await mailer.sendMail({
+      from: SENDER_EMAIL,
+      to: order.customerEmail,
+      subject,
+      html
+    });
+    return true;
+  } catch (err: any) {
+    console.error('[ORDER EMAIL ERROR]', err.message);
+    return false;
+  }
+}
+
 
 

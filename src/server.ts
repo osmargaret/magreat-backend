@@ -14,7 +14,9 @@ import {
   sendBroadcastNewsletter, 
   testSmtpConnection,
   sendCateringQuotationEmail,
-  sendCateringEnquiryAlert 
+  sendCateringEnquiryAlert,
+  sendCustomerMessageReplyEmail,
+  sendOrderStatusUpdateEmail
 } from './email.js';
 
 dotenv.config();
@@ -352,6 +354,21 @@ app.patch('/api/orders/:id/status', requireAdmin, (req: Request, res: Response) 
   if (!updated) {
     return res.status(404).json({ error: 'Order not found' });
   }
+
+  // Dispatch live order status notification to customer's device
+  if (updated.customerEmail) {
+    sendOrderStatusUpdateEmail({
+      id: updated.id,
+      customerName: updated.customerName,
+      customerEmail: updated.customerEmail,
+      status: updated.status,
+      total: updated.total,
+      deliveryAddress: updated.deliveryAddress
+    }).catch(err => {
+      console.error('[ORDER EMAIL ERROR] Failed to send order status email:', err);
+    });
+  }
+
   res.json(updated);
 });
 
@@ -729,6 +746,20 @@ app.post('/api/messages/:id/reply', requireAdmin, (req: Request, res: Response) 
   if (!updated) {
     return res.status(404).json({ error: 'Message not found' });
   }
+
+  // Dispatch reply notification email to customer's device
+  if (updated.email) {
+    sendCustomerMessageReplyEmail({
+      customerName: updated.name || 'Valued Customer',
+      customerEmail: updated.email,
+      originalMessage: updated.body || '',
+      replyText: reply,
+      subject: updated.subject || 'Kitchen Concierge Enquiry'
+    }).catch(err => {
+      console.error('[CUSTOMER REPLY EMAIL ERROR] Failed to dispatch reply email:', err);
+    });
+  }
+
   res.json({ message: 'Reply saved and delivered', item: updated });
 });
 
