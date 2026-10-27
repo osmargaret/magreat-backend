@@ -16,7 +16,8 @@ import {
   sendCateringQuotationEmail,
   sendCateringEnquiryAlert,
   sendCustomerMessageReplyEmail,
-  sendOrderStatusUpdateEmail
+  sendOrderStatusUpdateEmail,
+  sendWelcomeEmail
 } from './email.js';
 
 dotenv.config();
@@ -1137,27 +1138,46 @@ app.post('/api/customers', requireAdmin, (req: Request, res: Response) => {
 });
 
 // Public customer sync on signup / login from frontend
-app.post('/api/customers/sync', publicWriteLimit, (req: Request, res: Response) => {
+app.post('/api/customers/sync', publicWriteLimit, async (req: Request, res: Response) => {
   const { name, email, phone, photoURL } = req.body;
   if (!email) {
     return res.status(400).json({ error: 'Email is required' });
   }
   const cleanEmail = String(email).trim().toLowerCase();
+  const cleanName = name ? String(name).trim() : cleanEmail.split('@')[0];
   const customers = storage.getCustomers();
   const existing = customers.find(c => c.email.toLowerCase() === cleanEmail);
+
+  let customerRecord = existing;
+  let isNew = false;
   if (existing) {
-    return res.json({ success: true, customer: existing, isNew: false });
+    // If an existing customer logs in, update name/phone if newly provided
+    if (name && (!existing.name || existing.name === cleanEmail.split('@')[0])) {
+      existing.name = cleanName;
+      storage.updateCustomer(existing.id, { name: cleanName });
+    }
+  } else {
+    customerRecord = storage.addCustomer({
+      name: cleanName,
+      email: cleanEmail,
+      phone: phone ? String(phone).trim() : '0800 000 0000',
+      ordersCount: 0,
+      totalSpent: 0,
+      lastOrderDate: 'Registered via Web',
+      segment: 'New'
+    });
+    isNew = true;
   }
-  const created = storage.addCustomer({
-    name: name?.trim() || cleanEmail.split('@')[0],
-    email: cleanEmail,
-    phone: phone?.trim() || '0800 000 0000',
-    ordersCount: 0,
-    totalSpent: 0,
-    lastOrderDate: 'Registered via Web',
-    segment: 'New'
-  });
-  return res.status(201).json({ success: true, customer: created, isNew: true });
+
+  // Dispatch Welcome Email asynchronously via live Mailtrap SMTP
+  if (cleanEmail.includes('@')) {
+    sendWelcomeEmail({
+      customerName: cleanName,
+      customerEmail: cleanEmail
+    }).catch(err => console.warn('[WELCOME EMAIL WARNING] Failed to send welcome email:', err.message));
+  }
+
+  return res.status(isNew ? 201 : 200).json({ success: true, customer: customerRecord, isNew });
 });
 
 // ==========================================

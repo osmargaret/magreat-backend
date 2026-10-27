@@ -19,7 +19,7 @@ const SENDER_NAME = process.env.MAIL_SENDER_NAME || 'Margaret O.';
 const SENDER_EMAIL = process.env.MAIL_FROM || process.env.SMTP_FROM || `"${SENDER_NAME}" <${ADMIN_EMAIL}>`;
 
 let transporter: Transporter | null = null;
-let activePort = SMTP_PORT;
+let activePort = (SMTP_HOST.includes('mailtrap') && SMTP_PORT === 587) ? 2525 : SMTP_PORT;
 
 function createMailer(port: number): Transporter {
   return nodemailer.createTransport({
@@ -723,5 +723,101 @@ export async function sendOrderStatusUpdateEmail(order: {
   }
 }
 
+/**
+ * Sends a welcome email when a diner signs up or signs in
+ */
+export async function sendWelcomeEmail(data: {
+  customerName: string;
+  customerEmail: string;
+}): Promise<boolean> {
+  const mailer = getTransporter();
+  if (!mailer || !data.customerEmail || !data.customerEmail.includes('@')) {
+    console.warn('[WELCOME EMAIL] Mailer not configured or invalid recipient email:', data.customerEmail);
+    return false;
+  }
 
+  const firstName = data.customerName.replace(/^Chef\s+/i, '').split(/\s+/)[0] || 'Diner';
+  const subject = `Welcome to Ma'Great Taste, ${firstName}! 🍲 Your diner account is active`;
 
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Welcome to Ma'Great Taste</title>
+    </head>
+    <body style="margin: 0; padding: 24px 0; background-color: #f8fafc; font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <div style="max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 6px 20px rgba(0,0,0,0.06);">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #182838 0%, #244661 100%); padding: 32px 24px; text-align: center;">
+          <h1 style="margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 1px; color: #fed485;">MA' GREAT TASTE</h1>
+          <p style="margin: 6px 0 0; font-size: 13px; color: #cbd5e1; text-transform: uppercase; letter-spacing: 1.5px;">Authentic Nigerian Dining &bull; Lagos</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 32px 28px;">
+          <h2 style="font-size: 20px; color: #182838; margin-top: 0; font-weight: 800;">
+            Welcome to the Ma'Great Taste Family, ${firstName}! 🎉
+          </h2>
+
+          <p style="font-size: 15px; color: #334155; line-height: 1.6; margin: 14px 0;">
+            Thank you for joining <strong>Ma'Great Taste</strong>. Your diner account is now active and ready! Whether you crave our signature smoky Party Jollof, rich Egusi with Pounded Yam, high-protein meal prep bowls, or planning a landmark celebration, we are fired up to bring you Lagos's finest dining experience.
+          </p>
+
+          <!-- Account Perks Box -->
+          <div style="background: #fff8f6; border-left: 4px solid #c6381e; border-radius: 8px; padding: 16px 18px; margin: 22px 0;">
+            <p style="margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #c6381e; text-transform: uppercase; letter-spacing: 0.5px;">Your Diner Account Privileges</p>
+            <ul style="margin: 0; padding-left: 18px; font-size: 14px; color: #475569; line-height: 1.6;">
+              <li><strong>Live Order Tracking:</strong> Watch your food prep &amp; dispatch in real-time.</li>
+              <li><strong>Saved Meals:</strong> Bookmark favorite dishes for quick 1-click reordering.</li>
+              <li><strong>Exclusive Chef Discounts:</strong> Get member-only vouchers &amp; seasonal surprises.</li>
+              <li><strong>Automated Meal Reminders:</strong> Set daily alerts for Breakfast, Lunch, or Dinner.</li>
+            </ul>
+          </div>
+
+          <!-- CTAs -->
+          <div style="text-align: center; margin: 26px 0 16px;">
+            <a href="http://localhost:5173/#menu"
+               style="display: inline-block; background: #c6381e; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 13px 28px; border-radius: 8px; box-shadow: 0 4px 12px rgba(198,56,30,0.28); margin-bottom: 10px;">
+              🍲 Explore Today's Fresh Menu
+            </a>
+            <br />
+            <a href="https://wa.me/2349058271973?text=${encodeURIComponent(`Hello Chef Margaret! I just signed into Ma'Great Taste as ${data.customerName}.`)}"
+               style="display: inline-block; background: #25d366; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 10px 22px; border-radius: 8px;">
+              💬 Chat with Chef Margaret on WhatsApp
+            </a>
+          </div>
+
+          <p style="font-size: 13px; color: #64748b; line-height: 1.5; margin-top: 26px; border-top: 1px solid #eef2f5; padding-top: 16px;">
+            Warm regards,<br />
+            <strong>Chef Margaret &amp; The Kitchen Dispatch Team</strong><br />
+            Ma'Great Taste Restaurant &bull; Lekki Phase 1, Lagos, Nigeria
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #182838; padding: 18px 24px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #233548;">
+          <p style="margin: 0 0 4px; font-weight: 700; color: #fed485;">Ma'Great Taste Restaurant &amp; Events</p>
+          <p style="margin: 0; color: #cbd5e1;">Lekki Phase 1, Lagos, Nigeria &bull; Hotlines: +234 905 827 1973</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    await mailer.sendMail({
+      from: SENDER_EMAIL,
+      to: data.customerEmail,
+      replyTo: SENDER_EMAIL,
+      subject,
+      html
+    });
+    console.log(`[WELCOME EMAIL - SUCCESS] Dispatched welcome email to ${data.customerEmail} (${data.customerName})`);
+    return true;
+  } catch (err: any) {
+    console.error(`[WELCOME EMAIL - ERROR] Failed to send welcome email to ${data.customerEmail}:`, err.message);
+    return false;
+  }
+}

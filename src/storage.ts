@@ -810,6 +810,16 @@ export const storage = {
     writeJsonFile('customers.json', manualCustomers);
     return newCust;
   },
+  updateCustomer(id: string, updates: Partial<CustomerAccount>): CustomerAccount | null {
+    const manualCustomers = readJsonFile<CustomerAccount[]>('customers.json', []);
+    const idx = manualCustomers.findIndex(c => c.id === id);
+    if (idx !== -1) {
+      manualCustomers[idx] = { ...manualCustomers[idx], ...updates };
+      writeJsonFile('customers.json', manualCustomers);
+      return manualCustomers[idx];
+    }
+    return null;
+  },
   createOrUpdateDiscount(data: Omit<CustomerDiscount, 'id' | 'createdAt'> & { id?: string }): CustomerDiscount {
     const list = this.getDiscounts();
     if (data.id) {
