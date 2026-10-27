@@ -184,6 +184,105 @@ export async function sendNewsletterNotification(subscriberEmail: string): Promi
 }
 
 /**
+ * Sends an invitation email to a newly created admin with their temporary password.
+ * @param admin { name, email, role, invitedBy }
+ * @param plainPassword The password generated for the admin (in clear text).
+ */
+export async function sendAdminInviteEmail(admin: { name: string; email: string; role: string; invitedBy?: string }, plainPassword: string): Promise<boolean> {
+  const mailer = getTransporter();
+  const timestamp = new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' });
+  if (!mailer) {
+    console.log(`[EMAIL DISPATCH - RECORDED] Invite for admin ${admin.email} (role: ${admin.role}) by ${admin.invitedBy || 'system'} at ${timestamp}. (Configure SMTP for live transport)`);
+    return false;
+  }
+  try {
+    await mailer.sendMail({
+      from: SENDER_EMAIL,
+      to: admin.email,
+      subject: `🔑 You have been invited as ${admin.role === 'super_admin' ? 'Super Admin' : 'Admin Staff'} to Ma'Great Taste`,
+      html: `
+        <div style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06);">
+          <div style="background: linear-gradient(135deg, #182838 0%, #244661 100%); padding: 24px; text-align: center; color: #ffffff;">
+            <h1 style="margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.5px; color: #fed485;">Welcome to Ma'Great Taste</h1>
+            <p style="margin: 6px 0 0; font-size: 13px; color: #cbd5e1;">Your admin account is ready</p>
+          </div>
+          <div style="padding: 28px 24px;">
+            <p style="font-size: 15px; color: #1e293b; margin-top: 0;">Hello ${admin.name},</p>
+            <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+              You have been invited by ${admin.invitedBy || 'Chef Margaret'} to join the admin team as a <strong>${admin.role === 'super_admin' ? 'Super Admin' : 'Admin Staff'}</strong>.
+            </p>
+            <div style="background: #f8fafc; border-left: 4px solid #1d4ed8; padding: 16px; margin: 20px 0; border-radius: 6px;">
+              <p style="margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; font-weight: 700;">Login Details</p>
+              <p style="margin: 0; font-size: 16px; color: #1d4ed8;">Email: <strong>${admin.email}</strong></p>
+              <p style="margin: 4px 0 0; font-size: 16px; color: #1d4ed8;">Temporary Password: <strong>${plainPassword}</strong></p>
+              <p style="margin: 8px 0 0; font-size: 12px; color: #94a3b8;">Please change your password after first login.</p>
+            </div>
+            <p style="font-size: 13px; color: #64748b; line-height: 1.5;">
+              Access the admin portal at <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/admin/login" style="color:#1d4ed8; text-decoration:none;">${process.env.FRONTEND_URL || 'http://localhost:5173'}/admin/login</a>.
+            </p>
+          </div>
+          <div style="background: #f1f5f9; padding: 14px 24px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0;">
+            Ma'Great Taste Restaurant &amp; Catering Platform • Lagos, Nigeria
+          </div>
+        </div>
+      `
+    });
+    console.log(`[EMAIL DISPATCH - SUCCESS] Invitation sent to ${admin.email}`);
+    return true;
+  } catch (err) {
+    console.error(`[EMAIL DISPATCH - ERROR] Failed to send admin invite to ${admin.email}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Sends a password reset email to an admin.
+ * @param email Admin's email address.
+ * @param token Secure reset token (included in link).
+ */
+export async function sendAdminPasswordResetEmail(email: string, token: string): Promise<boolean> {
+  const mailer = getTransporter();
+  const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/admin/reset-password?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`;
+  const timestamp = new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' });
+  if (!mailer) {
+    console.log(`[EMAIL DISPATCH - RECORDED] Password reset for ${email} at ${timestamp}. Link: ${resetLink}`);
+    return false;
+  }
+  try {
+    await mailer.sendMail({
+      from: SENDER_EMAIL,
+      to: email,
+      subject: '🔐 Password Reset Request for Ma\'Great Taste Admin',
+      html: `
+        <div style="font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06);">
+          <div style="background: linear-gradient(135deg, #182838 0%, #244661 100%); padding: 24px; text-align: center; color: #ffffff;">
+            <h1 style="margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.5px; color: #fed485;">Password Reset Request</h1>
+            <p style="margin: 6px 0 0; font-size: 13px; color: #cbd5e1;">Ma'Great Taste Admin Portal</p>
+          </div>
+          <div style="padding: 28px 24px;">
+            <p style="font-size: 15px; color: #1e293b; margin-top: 0;">Hello,</p>
+            <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+              We received a request to reset the password for your admin account. Click the button below to set a new password. This link will expire in 1 hour.
+            </p>
+            <a href="${resetLink}" style="display:inline-block; margin:20px 0; padding:12px 24px; background:#1d4ed8; color:#ffffff; text-decoration:none; border-radius:6px; font-weight:600;">Reset Password</a>
+            <p style="font-size: 12px; color:#64748b; margin-top:16px;">If you did not request this, you can safely ignore this email.</p>
+          </div>
+          <div style="background: #f1f5f9; padding: 14px 24px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0;">
+            Ma'Great Taste Restaurant &amp; Catering Platform • Lagos, Nigeria
+          </div>
+        </div>
+      `
+    });
+    console.log(`[EMAIL DISPATCH - SUCCESS] Password reset email sent to ${email}`);
+    return true;
+  } catch (err) {
+    console.error(`[EMAIL DISPATCH - ERROR] Failed to send password reset to ${email}:`, err);
+    return false;
+  }
+}
+
+
+/**
  * Sends a notification email to hello@magreattaste.ng when a customer sends an inquiry/message
  */
 export async function sendContactMessageNotification(data: {
