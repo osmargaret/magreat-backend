@@ -203,3 +203,17 @@ export interface CustomerAccount {
   discount?: CustomerDiscount;
   createdAt: string;
 }
+
+export interface AcademyApplication {
+  id: string;
+  refNumber: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  journey: string;
+  schedule: string;
+  experience: string;
+  notes?: string;
+  status: 'Pending Review' | 'Admitted' | 'Contacted' | 'Enrolled' | 'Cancelled';
+  appliedAt: string;
+}

@@ -18,7 +18,8 @@ import type {
   MealPlanPackage,
   CustomerDiscount,
   StoreSettings,
-  CustomerAccount
+  CustomerAccount,
+  AcademyApplication
 } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -828,5 +829,38 @@ export const storage = {
       }
     }
     return { valid: true, discount: found };
+  },
+  getAcademyApplications(): AcademyApplication[] {
+    return readJsonFile<AcademyApplication[]>('academy_applications.json', []);
+  },
+  saveAcademyApplications(list: AcademyApplication[]): void {
+    writeJsonFile('academy_applications.json', list);
+  },
+  addAcademyApplication(app: Partial<AcademyApplication>): AcademyApplication {
+    const list = this.getAcademyApplications();
+    const newApp: AcademyApplication = {
+      id: `ACAD-${Date.now()}`,
+      refNumber: app.refNumber || `MGA-${Math.floor(100000 + Math.random() * 900000)}`,
+      fullName: (app.fullName || '').trim(),
+      email: (app.email || '').trim(),
+      phone: (app.phone || '').trim(),
+      journey: app.journey || '6-months',
+      schedule: app.schedule || 'weekend-executive',
+      experience: app.experience || 'beginner',
+      notes: app.notes || '',
+      status: 'Pending Review',
+      appliedAt: app.appliedAt || new Date().toISOString()
+    };
+    list.unshift(newApp);
+    this.saveAcademyApplications(list);
+    return newApp;
+  },
+  updateAcademyApplicationStatus(id: string, status: AcademyApplication['status']): AcademyApplication | null {
+    const list = this.getAcademyApplications();
+    const idx = list.findIndex(a => a.id === id || a.refNumber === id);
+    if (idx === -1) return null;
+    list[idx].status = status;
+    this.saveAcademyApplications(list);
+    return list[idx];
   }
 };

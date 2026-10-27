@@ -520,6 +520,48 @@ app.patch('/api/catering/:id/status', requireAdmin, (req: Request, res: Response
 });
 
 // ==========================================
+// CULINARY ARTS ACADEMY
+// ==========================================
+app.get('/api/academy/applications', (req: Request, res: Response) => {
+  const list = storage.getAcademyApplications();
+  res.json(list);
+});
+
+app.post('/api/academy/apply', publicWriteLimit, (req: Request, res: Response) => {
+  const { fullName, email, phone, journey, schedule, experience, notes, refNumber } = req.body;
+  if (!fullName || !phone) {
+    return res.status(400).json({ error: 'Full name and phone/WhatsApp number are required' });
+  }
+
+  const newApp = storage.addAcademyApplication({
+    fullName,
+    email: email || '',
+    phone,
+    journey: journey || '6-months',
+    schedule: schedule || 'weekend-executive',
+    experience: experience || 'beginner',
+    notes: notes || '',
+    refNumber
+  });
+
+  res.status(201).json({
+    success: true,
+    message: 'Application received successfully',
+    refNumber: newApp.refNumber,
+    application: newApp
+  });
+});
+
+app.patch('/api/academy/applications/:id/status', requireAdmin, (req: Request, res: Response) => {
+  const { status } = req.body;
+  const updated = storage.updateAcademyApplicationStatus(String(req.params.id), status);
+  if (!updated) {
+    return res.status(404).json({ error: 'Application not found' });
+  }
+  res.json(updated);
+});
+
+// ==========================================
 // 6. MEAL PLANS & FREEZER STOCKING
 // ==========================================
 app.get(['/api/mealplans/packages', '/api/meal-plans/packages', '/api/mealplans', '/api/meal-plans'], (req: Request, res: Response) => {
