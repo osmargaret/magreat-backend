@@ -705,11 +705,13 @@ app.post('/api/messages', publicWriteLimit, (req: Request, res: Response) => {
 });
 
 app.patch('/api/messages/:id/read', requireAdmin, (req: Request, res: Response) => {
-  const success = storage.markMessageRead(String(req.params.id));
+  const { unread } = req.body || {};
+  const isUnread = typeof unread === 'boolean' ? unread : false;
+  const success = storage.setMessageUnread(String(req.params.id), isUnread);
   if (!success) {
     return res.status(404).json({ error: 'Message not found' });
   }
-  res.json({ message: 'Marked as read' });
+  res.json({ message: isUnread ? 'Marked as unread' : 'Marked as read' });
 });
 
 app.post('/api/messages/read-all', requireAdmin, (req: Request, res: Response) => {

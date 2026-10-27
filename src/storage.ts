@@ -433,24 +433,28 @@ export const storage = {
   },
   addMessage(data: Omit<CustomerMessage, 'id' | 'time' | 'unread' | 'createdAt'>): CustomerMessage {
     const list = this.getMessages();
+    const now = new Date();
     const newMsg: CustomerMessage = {
       ...data,
       id: `MSG-${Math.floor(100 + Math.random() * 900)}`,
-      time: 'Just now',
+      time: now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
       unread: true,
-      createdAt: new Date().toISOString()
+      createdAt: now.toISOString()
     };
     list.unshift(newMsg);
     this.saveMessages(list);
     return newMsg;
   },
-  markMessageRead(id: string): boolean {
+  setMessageUnread(id: string, unread: boolean = false): boolean {
     const list = this.getMessages();
     const msg = list.find(m => m.id === id);
     if (!msg) return false;
-    msg.unread = false;
+    msg.unread = unread;
     this.saveMessages(list);
     return true;
+  },
+  markMessageRead(id: string): boolean {
+    return this.setMessageUnread(id, false);
   },
   markAllMessagesRead(): void {
     const list = this.getMessages();
