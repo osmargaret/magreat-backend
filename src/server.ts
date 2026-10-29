@@ -738,9 +738,10 @@ app.get('/api/messages', requireAdmin, (req: Request, res: Response) => {
   res.json(messages);
 });
 
-app.post('/api/messages', publicWriteLimit, (req: Request, res: Response) => {
-  const { name, email, phone, subject, body } = req.body;
-  if (!name || !body) {
+app.post(['/api/messages', '/api/contact'], publicWriteLimit, (req: Request, res: Response) => {
+  const { name, email, phone, subject, body, message } = req.body;
+  const messageText = body || message;
+  if (!name || !messageText) {
     return res.status(400).json({ error: 'Name and message body are required' });
   }
 
@@ -750,7 +751,7 @@ app.post('/api/messages', publicWriteLimit, (req: Request, res: Response) => {
     email: customerEmail,
     phone,
     subject: subject || 'New Website Inquiry',
-    body
+    body: messageText
   });
 
   // 1. Deliver notification to hello@magreattaste.ng
@@ -758,8 +759,8 @@ app.post('/api/messages', publicWriteLimit, (req: Request, res: Response) => {
     name,
     email: customerEmail,
     phone,
-    subject,
-    body
+    subject: subject || 'New Website Inquiry',
+    body: messageText
   }).catch(err => {
     console.error('[EMAIL ERROR] Failed to send contact message email alert:', err);
   });
