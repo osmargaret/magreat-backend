@@ -17,7 +17,8 @@ import {
   sendCateringEnquiryAlert,
   sendCustomerMessageReplyEmail,
   sendOrderStatusUpdateEmail,
-  sendWelcomeEmail
+  sendWelcomeEmail,
+  sendOtpVerificationEmail
 } from './email.js';
 
 dotenv.config();
@@ -198,7 +199,8 @@ app.use((req, res, next) => {
     req.url.startsWith('/messages') ||
     req.url.startsWith('/settings') ||
     req.url.startsWith('/upload') ||
-    req.url.startsWith('/health')
+    req.url.startsWith('/health') ||
+    req.url.startsWith('/auth')
   )) {
     req.url = '/api' + req.url;
   }
@@ -1179,6 +1181,38 @@ app.post('/api/customers/sync', publicWriteLimit, async (req: Request, res: Resp
 
   return res.status(isNew ? 201 : 200).json({ success: true, customer: customerRecord, isNew });
 });
+
+// Public OTP generation and email dispatch for Diner Sign Up / Sign In
+app.post('/api/auth/send-otp', publicWriteLimit, async (req: Request, res: Response) => {
+  try {
+    const { email, name, otp, purpose } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Email and verification code (OTP) are required' });
+    }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanOtp = String(otp).trim();
+    const cleanName = name ? String(name).trim() : cleanEmail.split('@')[0];
+
+    const emailSent = await sendOtpVerificationEmail({
+      email: cleanEmail,
+      name: cleanName,
+      otp: cleanOtp,
+      purpose: purpose === 'signin' ? 'signin' : 'signup'
+    });
+
+    return res.json({
+      success: true,
+      emailSent,
+      message: emailSent
+        ? `Verification code dispatched to ${cleanEmail}`
+        : `Verification code generated (${cleanOtp})`
+    });
+  } catch (err: any) {
+    console.error('[AUTH OTP ERROR]:', err);
+    return res.status(500).json({ error: err.message || 'Failed to dispatch verification code' });
+  }
+});
+
 
 // ==========================================
 // 13. ADMIN ROLE-BASED ACCESS & TEAM INVITATIONS

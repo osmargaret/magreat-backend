@@ -920,3 +920,89 @@ export async function sendWelcomeEmail(data: {
     return false;
   }
 }
+
+/**
+ * Send 6-digit OTP verification email for Sign Up / Sign In
+ */
+export async function sendOtpVerificationEmail(data: {
+  email: string;
+  name?: string;
+  otp: string;
+  purpose?: 'signup' | 'signin';
+}): Promise<boolean> {
+  const mailer = getTransporter();
+  if (!mailer) {
+    console.warn(`[OTP EMAIL - SIMULATED] Mailer not configured. OTP for ${data.email}: ${data.otp}`);
+    return false;
+  }
+
+  const firstName = (data.name || 'Food Lover').trim().split(' ')[0];
+  const subject = `${data.otp} is your Ma'Great Taste verification code`;
+  const actionText = data.purpose === 'signin' ? 'sign in to your diner account' : 'complete your account registration';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Ma'Great Taste Verification Code</title>
+    </head>
+    <body style="margin: 0; padding: 24px 0; background-color: #f8fafc; font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 6px 20px rgba(0,0,0,0.06);">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #182838 0%, #244661 100%); padding: 28px 24px; text-align: center;">
+          <h1 style="margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 1px; color: #fed485;">MA' GREAT TASTE</h1>
+          <p style="margin: 4px 0 0; font-size: 12px; color: #cbd5e1; text-transform: uppercase; letter-spacing: 1.5px;">Authentic Nigerian Dining &bull; Security Verification</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 32px 28px; text-align: center;">
+          <h2 style="font-size: 19px; color: #182838; margin-top: 0; font-weight: 800;">
+            Hello ${firstName},
+          </h2>
+          <p style="font-size: 14px; color: #475569; line-height: 1.6; margin: 12px 0 24px;">
+            Use the 6-digit one-time passcode below to ${actionText}:
+          </p>
+
+          <!-- OTP Box -->
+          <div style="background: #fff8f6; border: 2px dashed #c6381e; border-radius: 12px; padding: 18px 24px; display: inline-block; margin: 0 auto 24px;">
+            <span style="font-family: monospace, 'Courier New', Courier; font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #c6381e;">
+              ${data.otp}
+            </span>
+          </div>
+
+          <p style="font-size: 13px; color: #64748b; line-height: 1.5; margin: 0 0 16px;">
+            This passcode is valid for <strong>10 minutes</strong>. Never share this code with anyone.
+          </p>
+          <p style="font-size: 12px; color: #94a3b8; line-height: 1.4; margin: 0;">
+            If you did not request this verification code, please ignore this email.
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #182838; padding: 16px 24px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #233548;">
+          <p style="margin: 0 0 4px; font-weight: 700; color: #fed485;">Ma'Great Taste Restaurant &bull; Lekki Phase 1, Lagos</p>
+          <p style="margin: 0; color: #cbd5e1;">Hotlines &amp; WhatsApp: +234 905 827 1973</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  try {
+    await mailer.sendMail({
+      from: SENDER_EMAIL,
+      to: data.email,
+      replyTo: SENDER_EMAIL,
+      subject,
+      html
+    });
+    console.log(`[OTP EMAIL - SUCCESS] Dispatched OTP ${data.otp} to ${data.email}`);
+    return true;
+  } catch (err: any) {
+    console.error(`[OTP EMAIL - ERROR] Failed to send OTP email to ${data.email}:`, err.message);
+    return false;
+  }
+}
+
