@@ -981,22 +981,42 @@ app.get('/api/saved-meals', requireAdmin, (req: Request, res: Response) => {
 });
 
 app.post('/api/saved-meals', publicWriteLimit, (req: Request, res: Response) => {
-  const { customerName, customerEmail, customerPhone, items } = req.body;
-  if (!customerEmail || !items || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'Customer email and at least one saved meal item are required' });
+  const { customerName, customerEmail, customerPhone, items, savedMeals } = req.body;
+  const mealItems = items || savedMeals;
+  if (!customerEmail || !mealItems || !Array.isArray(mealItems)) {
+    return res.status(400).json({ error: 'Customer email and saved meal items are required' });
   }
 
   const result = storage.addOrUpdateCustomerSavedMeals({
     customerName: customerName || 'Food Lover',
     customerEmail,
     customerPhone,
-    items
+    items: mealItems
   });
 
   res.status(201).json({
-    message: `Your saved meals list has been saved and sent to ${customerEmail}! We'll send you timely dinner reminders.`,
+    message: `Your saved meals list has been updated.`,
     ...result
   });
+});
+
+// Customer Dashboard: Fetch Saved Meals for Logged-in Customer
+app.get('/api/customer/saved-meals', (req: Request, res: Response) => {
+  const email = String(req.query.email || '').trim().toLowerCase();
+  if (!email) {
+    return res.status(400).json({ error: 'Customer email query parameter is required' });
+  }
+  const allSaved = storage.getSavedMeals();
+  const userRecord = allSaved.find(s => s.customerEmail.toLowerCase().trim() === email);
+  if (userRecord) {
+    const savedMealIds = userRecord.items.map(i => i.foodId).filter(id => typeof id === 'number');
+    res.json({
+      ...userRecord,
+      savedMealIds
+    });
+  } else {
+    res.json({ customerEmail: email, items: [], savedMealIds: [] });
+  }
 });
 
 app.post('/api/saved-meals/:id/remind', requireAdmin, (req: Request, res: Response) => {
@@ -1182,7 +1202,7 @@ app.post('/api/customers/sync', publicWriteLimit, async (req: Request, res: Resp
   return res.status(isNew ? 201 : 200).json({ success: true, customer: customerRecord, isNew });
 });
 
-// Public OTP generation and email dispatch for Diner Sign Up / Sign In
+// Public OTP generation and email dispatch for Customer Account Sign Up / Sign In
 app.post('/api/auth/send-otp', publicWriteLimit, async (req: Request, res: Response) => {
   try {
     const { email, name, otp, purpose } = req.body;

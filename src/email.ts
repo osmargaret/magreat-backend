@@ -823,7 +823,7 @@ export async function sendOrderStatusUpdateEmail(order: {
 }
 
 /**
- * Sends a welcome email when a diner signs up or signs in
+ * Sends a welcome email when a customer signs up or signs in
  */
 export async function sendWelcomeEmail(data: {
   customerName: string;
@@ -835,8 +835,8 @@ export async function sendWelcomeEmail(data: {
     return false;
   }
 
-  const firstName = data.customerName.replace(/^Chef\s+/i, '').split(/\s+/)[0] || 'Diner';
-  const subject = `Welcome to Ma'Great Taste, ${firstName}! 🍲 Your diner account is active`;
+  const firstName = data.customerName.replace(/^Chef\s+/i, '').split(/\s+/)[0] || 'Friend';
+  const subject = `Welcome to Ma'Great Taste, ${firstName}! 🍲 Your account is active`;
 
   const html = `
     <!DOCTYPE html>
@@ -861,12 +861,12 @@ export async function sendWelcomeEmail(data: {
           </h2>
 
           <p style="font-size: 15px; color: #334155; line-height: 1.6; margin: 14px 0;">
-            Thank you for joining <strong>Ma'Great Taste</strong>. Your diner account is now active and ready! Whether you crave our signature smoky Party Jollof, rich Egusi with Pounded Yam, high-protein meal prep bowls, or planning a landmark celebration, we are fired up to bring you Lagos's finest dining experience.
+            Thank you for joining <strong>Ma'Great Taste</strong>. Your account is now active and ready! Whether you crave our signature smoky Party Jollof, rich Egusi with Pounded Yam, high-protein meal prep bowls, or planning a landmark celebration, we are fired up to bring you Lagos's finest dining experience.
           </p>
 
           <!-- Account Perks Box -->
           <div style="background: #fff8f6; border-left: 4px solid #c6381e; border-radius: 8px; padding: 16px 18px; margin: 22px 0;">
-            <p style="margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #c6381e; text-transform: uppercase; letter-spacing: 0.5px;">Your Diner Account Privileges</p>
+            <p style="margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #c6381e; text-transform: uppercase; letter-spacing: 0.5px;">Your Account Privileges</p>
             <ul style="margin: 0; padding-left: 18px; font-size: 14px; color: #475569; line-height: 1.6;">
               <li><strong>Live Order Tracking:</strong> Watch your food prep &amp; dispatch in real-time.</li>
               <li><strong>Saved Meals:</strong> Bookmark favorite dishes for quick 1-click reordering.</li>
@@ -938,7 +938,7 @@ export async function sendOtpVerificationEmail(data: {
 
   const firstName = (data.name || 'Food Lover').trim().split(' ')[0];
   const subject = `${data.otp} is your Ma'Great Taste verification code`;
-  const actionText = data.purpose === 'signin' ? 'sign in to your diner account' : 'complete your account registration';
+  const actionText = data.purpose === 'signin' ? 'sign in to your account' : 'complete your account registration';
 
   const html = `
     <!DOCTYPE html>
