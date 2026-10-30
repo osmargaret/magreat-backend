@@ -11,6 +11,7 @@ export interface FoodItem {
   status: 'Available' | 'Sold out';
   ordersCount: number;
   createdAt: string;
+  availableLocations?: string[]; // Array of delivery location IDs (places in Lagos). If empty/undefined, dish is available everywhere in Lagos.
 }
 
 export interface OrderItem {
@@ -21,7 +22,7 @@ export interface OrderItem {
   image?: string;
 }
 
-export type PaymentMethod = 'card' | 'transfer' | 'ussd' | 'cash_on_delivery';
+export type PaymentMethod = 'paystack' | 'card' | 'transfer' | 'ussd' | 'cash_on_delivery';
 export type PaymentStatus = 'pending' | 'paid' | 'failed';
 export type OrderStatus = 'New' | 'Preparing' | 'Ready' | 'Delivered' | 'Cancelled';
 
@@ -78,6 +79,9 @@ export interface CateringEnquiry {
   dietaryRequirements?: string;
   notes?: string;
   status: 'Pending' | 'Quote sent' | 'Confirmed' | 'Declined';
+  quoteAmount?: number;
+  menuNotes?: string;
+  confirmedAt?: string;
   createdAt: string;
 }
 
@@ -175,6 +179,13 @@ export interface CustomerDiscount {
   createdAt: string;
 }
 
+export interface CateringServicePrice {
+  id: string;       // e.g. 'buffet', 'plated', 'cocktail'
+  label: string;    // Display label shown on the site
+  pricePerGuest: number; // NGN per guest
+  description?: string;
+}
+
 export interface StoreSettings {
   businessName: string;
   kitchenAddress: string;
@@ -186,6 +197,7 @@ export interface StoreSettings {
   minOrderAmount?: number;
   deliveryFee?: number;
   openingHours?: string;
+  cateringServicePrices?: CateringServicePrice[];
   updatedAt?: string;
 }
 
@@ -231,3 +243,48 @@ export interface AdminUser {
   lastLoginAt?: string;
   invitedBy?: string;
 }
+
+export interface SignatureDish {
+  id: string;
+  foodId?: number;
+  name: string;
+  tag: string;
+  price?: number;
+  description?: string;
+  image: string;
+  local?: string;
+  alt?: string;
+  order?: number;
+  createdAt: string;
+}
+
+export interface TastingRequest {
+  id: string;
+  companyName: string;
+  contactPerson: string;
+  contactPhone: string;
+  companyEmail: string;
+  guestCount: number;
+  mealCount: number;
+  mealSelections: string;
+  location: string;
+  preferredDate: string;
+  preferredTime: string;
+  notes?: string;
+  status: 'Pending' | 'Scheduled' | 'Delivered' | 'Declined';
+  adminNotes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface DeliveryLocation {
+  id: string; // e.g. 'lekki-phase-1'
+  name: string; // e.g. 'Lekki Phase 1'
+  zone: string; // e.g. 'Lagos Island / Eti-Osa' or 'Lagos Mainland'
+  state: 'Lagos';
+  deliveryFee: number; // e.g. 2000
+  estimatedTime: string; // e.g. '20–35 min'
+  isActive: boolean;
+  createdAt: string;
+}
+

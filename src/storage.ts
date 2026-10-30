@@ -19,10 +19,14 @@ import type {
   MealPlanPackage,
   CustomerDiscount,
   StoreSettings,
+  CateringServicePrice,
   CustomerAccount,
   AcademyApplication,
   AdminUser,
-  AdminRole
+  AdminRole,
+  SignatureDish,
+  TastingRequest,
+  DeliveryLocation
 } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -250,6 +254,169 @@ const defaultCatering: CateringEnquiry[] = [];
 const defaultMessages: CustomerMessage[] = [];
 const defaultSavedMeals: CustomerSavedMeals[] = [];
 
+const defaultSignatureDishes: SignatureDish[] = [
+  {
+    id: 'sig-1',
+    foodId: 1,
+    name: 'Fresh Catfish Pepper Soup',
+    tag: 'Rich & Savory',
+    price: 8500,
+    description: 'Authentic Nigerian Catfish Pepper Soup with fragrant native herbs in slow-simmered savory broth',
+    image: 'https://res.cloudinary.com/p2pa6dfi/image/upload/f_auto,q_auto,w_900/v1792615998/magreat_meals/catfish-pepper-soup.jpg',
+    local: '/images/meal-catfish-soup.jpg',
+    alt: 'Authentic Nigerian Catfish Pepper Soup with herbs in rich savory broth',
+    order: 1,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'sig-2',
+    name: 'Crispy Fried Croaker Fish',
+    tag: 'Golden Crisp',
+    price: 7500,
+    description: 'Crisp-skin whole croaker fish marinated in Chef Margaret secret spice blend and flash-fried to golden perfection',
+    image: 'https://res.cloudinary.com/p2pa6dfi/image/upload/f_auto,q_auto,w_900/v1792616008/magreat_meals/crispy-fried-croaker-fish.jpg',
+    local: '/images/meal-crispy-fish.jpg',
+    alt: 'Seasoned crispy golden fried whole fish with fresh garnish',
+    order: 2,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'sig-3',
+    name: 'Lagos Stir-Fry Indomie',
+    tag: 'Chef Special',
+    price: 4500,
+    description: 'Wok-tossed Lagos noodles with shredded bell peppers, sweet corn, sliced sausage and secret chili-infused glaze',
+    image: 'https://res.cloudinary.com/p2pa6dfi/image/upload/f_auto,q_auto,w_900/v1792616010/magreat_meals/lagos-stir-fry-indomie.jpg',
+    local: '/images/meal-stirfry-noodles.jpg',
+    alt: 'Loaded Nigerian stir-fry noodles with sweet peppers, sausages, and spring onions',
+    order: 3,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'sig-4',
+    name: 'Smoky Party Jollof & Grilled Chicken',
+    tag: "Chef's Pride",
+    price: 6500,
+    description: 'Signature firewood party jollof rice with flame-grilled chicken, caramelized sweet plantains and house slaw',
+    image: 'https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?auto=format&fit=crop&w=900&q=85',
+    local: '/images/meal-smoky-jollof.jpg',
+    alt: 'Firewood-infused party jollof rice with grilled chicken',
+    order: 4,
+    createdAt: new Date().toISOString()
+  }
+];
+
+const defaultTastingRequests: TastingRequest[] = [];
+
+const defaultCateringServicePrices: CateringServicePrice[] = [
+  { id: 'buffet', label: 'Grand Buffet Feast', pricePerGuest: 8500, description: 'Full buffet spread with variety of Nigerian dishes' },
+  { id: 'plated', label: 'Plated VIP 3-Course Banquet', pricePerGuest: 14000, description: 'Individually plated 3-course sit-down dinner' },
+  { id: 'cocktail', label: 'Cocktail & Grill Bar', pricePerGuest: 5500, description: 'Standing cocktail reception with grills & small chops' }
+];
+
+const defaultLocations: DeliveryLocation[] = [
+  {
+    id: 'lekki-phase-1',
+    name: 'Lekki Phase 1',
+    zone: 'Island & Lekki Axis',
+    state: 'Lagos',
+    deliveryFee: 2000,
+    estimatedTime: '20–35 min',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'victoria-island',
+    name: 'Victoria Island (VI)',
+    zone: 'Lagos Island',
+    state: 'Lagos',
+    deliveryFee: 2500,
+    estimatedTime: '25–40 min',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'ikoyi',
+    name: 'Ikoyi & Banana Island',
+    zone: 'Lagos Island',
+    state: 'Lagos',
+    deliveryFee: 2500,
+    estimatedTime: '25–40 min',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'ikeja-gra',
+    name: 'Ikeja GRA & Alausa',
+    zone: 'Lagos Mainland',
+    state: 'Lagos',
+    deliveryFee: 3000,
+    estimatedTime: '30–45 min',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'surulere',
+    name: 'Surulere',
+    zone: 'Lagos Mainland',
+    state: 'Lagos',
+    deliveryFee: 2500,
+    estimatedTime: '30–45 min',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'yaba',
+    name: 'Yaba & Akoka',
+    zone: 'Lagos Mainland',
+    state: 'Lagos',
+    deliveryFee: 2500,
+    estimatedTime: '25–40 min',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'ajah',
+    name: 'Ajah & Sangotedo',
+    zone: 'Lekki-Epe Axis',
+    state: 'Lagos',
+    deliveryFee: 3000,
+    estimatedTime: '35–50 min',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'maryland',
+    name: 'Maryland & Anthony',
+    zone: 'Lagos Mainland',
+    state: 'Lagos',
+    deliveryFee: 2800,
+    estimatedTime: '30–45 min',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'magodo',
+    name: 'Magodo Phase 1 & 2',
+    zone: 'Lagos Mainland',
+    state: 'Lagos',
+    deliveryFee: 3200,
+    estimatedTime: '35–50 min',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'gbagada',
+    name: 'Gbagada',
+    zone: 'Lagos Mainland',
+    state: 'Lagos',
+    deliveryFee: 2500,
+    estimatedTime: '25–40 min',
+    isActive: true,
+    createdAt: new Date().toISOString()
+  }
+];
+
 const defaultSettings: StoreSettings = {
   businessName: 'Ma’Great Taste Restaurant & Catering Services',
   kitchenAddress: 'Lekki Phase 1, Lagos, Nigeria',
@@ -261,6 +428,7 @@ const defaultSettings: StoreSettings = {
   minOrderAmount: 3000,
   deliveryFee: 2000,
   openingHours: '8:00 AM – 10:00 PM Daily',
+  cateringServicePrices: defaultCateringServicePrices,
   updatedAt: new Date().toISOString()
 };
 
@@ -419,11 +587,18 @@ export const storage = {
     this.saveCatering(list);
     return newEnquiry;
   },
-  updateCateringStatus(id: string, status: CateringEnquiry['status']): CateringEnquiry | null {
+  updateCateringStatus(
+    id: string,
+    status: CateringEnquiry['status'],
+    extra?: { quoteAmount?: number; menuNotes?: string; confirmedAt?: string }
+  ): CateringEnquiry | null {
     const list = this.getCatering();
     const item = list.find(c => c.id === id);
     if (!item) return null;
     item.status = status;
+    if (extra?.quoteAmount !== undefined) item.quoteAmount = extra.quoteAmount;
+    if (extra?.menuNotes !== undefined) item.menuNotes = extra.menuNotes;
+    if (status === 'Confirmed' && !item.confirmedAt) item.confirmedAt = new Date().toISOString();
     this.saveCatering(list);
     return item;
   },
@@ -990,5 +1165,129 @@ export const storage = {
     admin.lastLoginAt = new Date().toISOString();
     this.saveAdmins(this.getAdmins());
     return admin;
+  },
+
+  // Signature Dishes
+  getSignatureDishes(): SignatureDish[] {
+    const list = readJsonFile<SignatureDish[]>('signature_dishes.json', defaultSignatureDishes);
+    return list.sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+  },
+  saveSignatureDishes(dishes: SignatureDish[]): void {
+    writeJsonFile('signature_dishes.json', dishes);
+  },
+  addSignatureDish(dish: Omit<SignatureDish, 'id' | 'createdAt'>): SignatureDish {
+    const list = this.getSignatureDishes();
+    const newDish: SignatureDish = {
+      ...dish,
+      id: `sig-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+      createdAt: new Date().toISOString()
+    };
+    list.push(newDish);
+    this.saveSignatureDishes(list);
+    return newDish;
+  },
+  updateSignatureDish(id: string, updates: Partial<SignatureDish>): SignatureDish | null {
+    const list = this.getSignatureDishes();
+    const idx = list.findIndex(d => d.id === id);
+    if (idx === -1) return null;
+    list[idx] = { ...list[idx], ...updates };
+    this.saveSignatureDishes(list);
+    return list[idx];
+  },
+  deleteSignatureDish(id: string): boolean {
+    const list = this.getSignatureDishes();
+    const filtered = list.filter(d => d.id !== id);
+    if (filtered.length === list.length) return false;
+    this.saveSignatureDishes(filtered);
+    return true;
+  },
+
+  // Tasting Requests
+  getTastingRequests(): TastingRequest[] {
+    const list = readJsonFile<TastingRequest[]>('tasting_requests.json', defaultTastingRequests);
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+  saveTastingRequests(requests: TastingRequest[]): void {
+    writeJsonFile('tasting_requests.json', requests);
+  },
+  addTastingRequest(data: Omit<TastingRequest, 'id' | 'status' | 'createdAt'>): TastingRequest {
+    const list = this.getTastingRequests();
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const newRequest: TastingRequest = {
+      ...data,
+      id: `TST-${randomSuffix}`,
+      status: 'Pending',
+      createdAt: new Date().toISOString()
+    };
+    list.unshift(newRequest);
+    this.saveTastingRequests(list);
+    return newRequest;
+  },
+  updateTastingRequestStatus(id: string, status: TastingRequest['status'], adminNotes?: string): TastingRequest | null {
+    const list = this.getTastingRequests();
+    const idx = list.findIndex(r => r.id === id);
+    if (idx === -1) return null;
+    list[idx].status = status;
+    if (adminNotes !== undefined) list[idx].adminNotes = adminNotes;
+    list[idx].updatedAt = new Date().toISOString();
+    this.saveTastingRequests(list);
+    return list[idx];
+  },
+  deleteTastingRequest(id: string): boolean {
+    const list = this.getTastingRequests();
+    const filtered = list.filter(r => r.id !== id);
+    if (filtered.length === list.length) return false;
+    this.saveTastingRequests(filtered);
+    return true;
+  },
+
+  // Delivery Locations (Lagos State Only)
+  getLocations(activeOnly = false): DeliveryLocation[] {
+    const list = readJsonFile<DeliveryLocation[]>('locations.json', defaultLocations);
+    if (activeOnly) {
+      return list.filter(l => l.isActive);
+    }
+    return list;
+  },
+  saveLocations(locations: DeliveryLocation[]): void {
+    writeJsonFile('locations.json', locations);
+  },
+  addLocation(loc: Omit<DeliveryLocation, 'id' | 'createdAt' | 'state'> & { id?: string }): DeliveryLocation {
+    const list = this.getLocations();
+    const slug = loc.id || loc.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const uniqueId = list.some(l => l.id === slug) ? `${slug}-${Date.now().toString().slice(-4)}` : slug;
+    const newLocation: DeliveryLocation = {
+      ...loc,
+      id: uniqueId,
+      state: 'Lagos',
+      isActive: loc.isActive !== undefined ? loc.isActive : true,
+      createdAt: new Date().toISOString()
+    };
+    list.push(newLocation);
+    this.saveLocations(list);
+    return newLocation;
+  },
+  updateLocation(id: string, updates: Partial<DeliveryLocation>): DeliveryLocation | null {
+    const list = this.getLocations();
+    const idx = list.findIndex(l => l.id === id);
+    if (idx === -1) return null;
+    list[idx] = { ...list[idx], ...updates, state: 'Lagos' };
+    this.saveLocations(list);
+    return list[idx];
+  },
+  deleteLocation(id: string): boolean {
+    const list = this.getLocations();
+    const filtered = list.filter(l => l.id !== id);
+    if (filtered.length === list.length) return false;
+    this.saveLocations(filtered);
+    return true;
+  },
+  assignMealLocations(foodId: number, locationIds: string[]): FoodItem | null {
+    const foods = this.getFoods();
+    const idx = foods.findIndex(f => f.id === foodId);
+    if (idx === -1) return null;
+    foods[idx].availableLocations = locationIds;
+    this.saveFoods(foods);
+    return foods[idx];
   }
 };

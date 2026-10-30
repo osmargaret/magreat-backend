@@ -1,6 +1,8 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import https from 'node:https';
 import dns from 'node:dns';
 import path from 'node:path';
@@ -10,18 +12,33 @@ import rateLimit from 'express-rate-limit';
 import { storage } from './storage.js';
 import { 
   sendNewsletterNotification, 
+  sendNewsletterWelcomeEmail,
   sendContactMessageNotification, 
   sendBroadcastNewsletter, 
   testSmtpConnection,
+  sendCateringConsultationThankYouEmail,
   sendCateringQuotationEmail,
   sendCateringEnquiryAlert,
   sendCustomerMessageReplyEmail,
   sendOrderStatusUpdateEmail,
   sendWelcomeEmail,
-  sendOtpVerificationEmail
+  sendOtpVerificationEmail,
+  sendTastingRequestThankYouEmail,
+  sendTastingRequestAdminAlert,
+  sendSavedMealConfirmationEmail,
+  sendSavedMealReminderEmail,
+  sendCustomMealPlanConfirmationEmail,
+  sendContactConfirmationEmailToCustomer,
+  sendCustomerOrderConfirmationEmail,
+  sendAdminOrderNotificationEmail,
+  sendAdminInviteEmail,
+  sendAdminPasswordResetEmail,
+  sendAcademyApplicationConfirmationEmail,
+  sendAcademyApplicationAdminAlert,
+  sendAcademyStatusUpdateEmail
 } from './email.js';
 
-dotenv.config();
+const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || 'sk_test_30c5651e1fa89e38d79ab5768016cda82caecdea';
 
 // ==========================================
 // STARTUP: Validate required environment variables
@@ -261,6 +278,7 @@ app.get('/api/menu', (req: Request, res: Response) => {
   const foods = storage.getFoods();
   const category = req.query.category as string | undefined;
   const search = req.query.search as string | undefined;
+  const location = req.query.location as string | undefined;
 
   let filtered = foods;
   if (category && category !== 'All meals' && category !== 'All') {
@@ -274,12 +292,23 @@ app.get('/api/menu', (req: Request, res: Response) => {
       f.category.toLowerCase().includes(q)
     );
   }
+  if (location && location !== 'all') {
+    const locId = location.toLowerCase().trim();
+    filtered = filtered.filter(f => {
+      // If food has no specific locations defined, it is available everywhere across Lagos
+      if (!f.availableLocations || f.availableLocations.length === 0) return true;
+      return f.availableLocations.some(l => {
+        const lNorm = l.toLowerCase().trim();
+        return lNorm === locId || locId.includes(lNorm) || lNorm.includes(locId);
+      });
+    });
+  }
 
   res.json(filtered);
 });
 
 app.post('/api/menu', requireAdmin, (req: Request, res: Response) => {
-  const { name, description, price, category, tag, image, rating, time } = req.body;
+  const { name, description, price, category, tag, image, rating, time, availableLocations } = req.body;
   if (!name || !price) {
     return res.status(400).json({ error: 'Name and price are required' });
   }
@@ -293,29 +322,95 @@ app.post('/api/menu', requireAdmin, (req: Request, res: Response) => {
     image: image || 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=85',
     rating: rating || '4.9',
     time: time || '25–35 min',
-    status: 'Available'
+    status: 'Available',
+    availableLocations: Array.isArray(availableLocations) ? availableLocations : []
   });
 
   res.status(201).json(newFood);
 });
 
-app.put('/api/menu/:id', requireAdmin, (req: Request, res: Response) => {
+app.all(['/api/menu/:id', '/api/foods/:id'], requireAdmin, (req: Request, res: Response, next: NextFunction) => {
+  if (req.method === 'DELETE') {
+    const id = Number(req.params.id);
+    const success = storage.deleteFood(id);
+    if (!success) {
+      return res.status(404).json({ error: 'Menu item not found' });
+    }
+    return res.json({ message: 'Menu item deleted successfully' });
+  }
+
+  if (req.method === 'PUT' || req.method === 'PATCH') {
+    const id = Number(req.params.id);
+    const updated = storage.updateFood(id, req.body);
+    if (!updated) {
+      return res.status(404).json({ error: 'Menu item not found' });
+    }
+    return res.json(updated);
+  }
+
+  next();
+});
+
+app.patch(['/api/menu/:id/locations', '/api/foods/:id/locations'], requireAdmin, (req: Request, res: Response) => {
   const id = Number(req.params.id);
-  const updated = storage.updateFood(id, req.body);
+  const { locations } = req.body;
+  if (!Array.isArray(locations)) {
+    return res.status(400).json({ error: 'locations must be an array of location IDs' });
+  }
+  const updated = storage.assignMealLocations(id, locations);
   if (!updated) {
     return res.status(404).json({ error: 'Menu item not found' });
   }
-  res.json(updated);
+  res.json({ success: true, message: 'Meal locations updated successfully', food: updated });
 });
 
-app.delete('/api/menu/:id', requireAdmin, (req: Request, res: Response) => {
-  const id = Number(req.params.id);
-  const success = storage.deleteFood(id);
-  if (!success) {
-    return res.status(404).json({ error: 'Menu item not found' });
-  }
-  res.json({ message: 'Menu item deleted successfully' });
+// ==========================================
+// 1B. DELIVERY LOCATIONS (LAGOS STATE ONLY)
+// ==========================================
+app.get('/api/locations', (req: Request, res: Response) => {
+  const all = req.query.all === 'true';
+  const locations = storage.getLocations(!all);
+  res.json(locations);
 });
+
+app.post('/api/locations', requireAdmin, (req: Request, res: Response) => {
+  const { name, zone, deliveryFee, estimatedTime, isActive } = req.body;
+  if (!name || deliveryFee === undefined || deliveryFee === null || isNaN(Number(deliveryFee))) {
+    return res.status(400).json({ error: 'Location name and a valid deliveryFee are required' });
+  }
+
+  const newLoc = storage.addLocation({
+    name: String(name).trim(),
+    zone: zone ? String(zone).trim() : 'Lagos',
+    deliveryFee: Number(deliveryFee) || 0,
+    estimatedTime: estimatedTime ? String(estimatedTime).trim() : '25–40 min',
+    isActive: isActive !== undefined ? Boolean(isActive) : true
+  });
+
+  res.status(201).json(newLoc);
+});
+
+app.all('/api/locations/:id', requireAdmin, (req: Request, res: Response, next: NextFunction) => {
+  if (req.method === 'PUT' || req.method === 'PATCH') {
+    const id = String(req.params.id);
+    const updated = storage.updateLocation(id, req.body);
+    if (!updated) {
+      return res.status(404).json({ error: 'Location not found' });
+    }
+    return res.json(updated);
+  }
+  next();
+});
+
+app.delete('/api/locations/:id', requireAdmin, (req: Request, res: Response) => {
+  const id = String(req.params.id);
+  const success = storage.deleteLocation(id);
+  if (!success) {
+    return res.status(404).json({ error: 'Location not found' });
+  }
+  res.json({ success: true, message: 'Location deleted successfully' });
+});
+
 
 // ==========================================
 // 2. ORDER ENDPOINTS & CHECKOUT
@@ -381,10 +476,20 @@ app.post('/api/orders', publicWriteLimit, (req: Request, res: Response) => {
     subtotal: Number(subtotal) || 0,
     deliveryFee: Number(deliveryFee) || 0,
     total: Number(total) || (Number(subtotal) || 0) + (Number(deliveryFee) || 0),
-    paymentMethod: paymentMethod || 'card',
-    paymentStatus: paymentStatus || (paymentMethod === 'cash_on_delivery' ? 'pending' : 'paid'),
+    paymentMethod: paymentMethod || 'paystack',
+    paymentStatus: paymentStatus || 'paid',
     paymentReference: paymentReference || `REF-${Math.floor(100000 + Math.random() * 900000)}`,
-    estimatedDeliveryTime: '30–45 mins'
+    estimatedDeliveryTime: '25–40 mins'
+  });
+
+  // Automatically dispatch confirmation email to customer
+  sendCustomerOrderConfirmationEmail(newOrder).catch(err => {
+    console.error('[ORDER EMAIL ERROR - CUSTOMER]', err);
+  });
+
+  // Send order notification email to administrator
+  sendAdminOrderNotificationEmail(newOrder).catch(err => {
+    console.error('[ORDER EMAIL ERROR - ADMIN]', err);
   });
 
   res.status(201).json(newOrder);
@@ -419,44 +524,139 @@ app.patch('/api/orders/:id/status', requireAdmin, (req: Request, res: Response) 
 });
 
 // ==========================================
-// 3. PAYMENT PROCESSING SIMULATION
+// 3. PAYSTACK PAYMENT PROCESSING (EXCLUSIVE GATEWAY)
 // ==========================================
-app.post('/api/payments/verify', (req: Request, res: Response) => {
-  const { paymentMethod, amount, reference, customer } = req.body;
+app.post('/api/payments/paystack/initialize', async (req: Request, res: Response) => {
+  try {
+    const { email, amount, customerName, customerPhone, deliveryAddress, items } = req.body;
+    if (!email || !amount || Number(amount) <= 0) {
+      return res.status(400).json({ error: 'Valid customer email and positive order amount are required' });
+    }
 
-  // Realistic mock payment gateway response
-  const isSuccess = true;
-  if (isSuccess) {
-    return res.json({
+    const amountInKobo = Math.round(Number(amount) * 100);
+    const callbackUrl = req.headers.origin 
+      ? `${req.headers.origin}/?payment=success` 
+      : 'http://localhost:5173/?payment=success';
+
+    const paystackRes = await fetch('https://api.paystack.co/transaction/initialize', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: String(email).trim().toLowerCase(),
+        amount: amountInKobo,
+        callback_url: callbackUrl,
+        metadata: {
+          customerName,
+          customerPhone,
+          deliveryAddress,
+          itemCount: Array.isArray(items) ? items.length : 0,
+          custom_fields: [
+            { display_name: 'Customer Name', variable_name: 'customer_name', value: customerName },
+            { display_name: 'Delivery Address', variable_name: 'delivery_address', value: deliveryAddress }
+          ]
+        }
+      })
+    });
+
+    const data: any = await paystackRes.json();
+    if (!paystackRes.ok || !data.status) {
+      return res.status(400).json({
+        error: data.message || 'Unable to initialize transaction with Paystack'
+      });
+    }
+
+    res.json({
       success: true,
-      status: 'success',
-      reference: reference || `VER-${Date.now()}`,
-      message: 'Payment verified successfully.',
-      gateway: paymentMethod === 'card' ? 'Paystack Card Gateway' : 'Instant NIP Bank Transfer Gateway',
-      paidAt: new Date().toISOString(),
-      amount
+      authorization_url: data.data.authorization_url,
+      access_code: data.data.access_code,
+      reference: data.data.reference
     });
-  } else {
-    return res.status(400).json({
-      success: false,
-      status: 'failed',
-      message: 'Payment could not be verified. Please retry.'
-    });
+  } catch (err: any) {
+    console.error('[PAYSTACK INITIALIZE ERROR]', err);
+    res.status(500).json({ error: 'Failed to connect to Paystack gateway' });
   }
 });
 
-// Dynamic virtual bank account generator for transfer payment
-app.post('/api/payments/bank-transfer', (req: Request, res: Response) => {
-  const { amount, customerName } = req.body;
-  const virtualAccount = {
-    bankName: 'Providus Bank / Wema Bank',
-    accountNumber: '99' + Math.floor(10000000 + Math.random() * 90000000),
-    accountName: `Ma'Great Taste / ${customerName || 'Guest'}`,
-    reference: `MGT-TRF-${Math.floor(100000 + Math.random() * 900000)}`,
-    expiresInMinutes: 30,
-    amount: amount || 0
-  };
-  res.json(virtualAccount);
+app.post(['/api/payments/paystack/verify', '/api/payments/verify'], async (req: Request, res: Response) => {
+  try {
+    const { reference, orderPayload } = req.body;
+    if (!reference) {
+      return res.status(400).json({ error: 'Payment reference is required for verification' });
+    }
+
+    // 1. Verify directly with Paystack API using secret key
+    const paystackVerifyRes = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+      headers: {
+        'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const verifyData: any = await paystackVerifyRes.json();
+    if (!paystackVerifyRes.ok || !verifyData.status || verifyData.data?.status !== 'success') {
+      const reason = verifyData.data?.gateway_response || verifyData.message || 'Payment verification failed';
+      return res.status(400).json({
+        success: false,
+        verified: false,
+        error: `Paystack payment could not be confirmed: ${reason}`
+      });
+    }
+
+    const paystackTx = verifyData.data;
+
+    // 2. If orderPayload is provided, create the confirmed order
+    if (orderPayload && orderPayload.items && orderPayload.items.length > 0) {
+      const newOrder = storage.createOrder({
+        customerName: orderPayload.customerName || paystackTx.customer?.first_name || 'Customer',
+        customerEmail: orderPayload.customerEmail || paystackTx.customer?.email || 'customer@magreattaste.ng',
+        customerPhone: orderPayload.customerPhone || paystackTx.customer?.phone || '',
+        deliveryAddress: orderPayload.deliveryAddress || 'Central Kitchen Dispatch',
+        city: orderPayload.city || 'Lagos, Nigeria',
+        deliveryNotes: orderPayload.deliveryNotes || '',
+        items: orderPayload.items,
+        subtotal: Number(orderPayload.subtotal) || 0,
+        deliveryFee: Number(orderPayload.deliveryFee) || 0,
+        total: Number(orderPayload.total) || (paystackTx.amount / 100),
+        paymentMethod: 'paystack',
+        paymentStatus: 'paid',
+        paymentReference: reference,
+        estimatedDeliveryTime: '25–40 mins'
+      });
+
+      // 3. Automatically send order confirmation email to the customer
+      sendCustomerOrderConfirmationEmail(newOrder).catch(err => {
+        console.error('[ORDER EMAIL ERROR - CUSTOMER]', err);
+      });
+
+      // 4. Send order notification email to administrator
+      sendAdminOrderNotificationEmail(newOrder).catch(err => {
+        console.error('[ORDER EMAIL ERROR - ADMIN]', err);
+      });
+
+      return res.status(201).json({
+        success: true,
+        verified: true,
+        order: newOrder,
+        message: 'Payment verified and order confirmed successfully.'
+      });
+    }
+
+    return res.json({
+      success: true,
+      verified: true,
+      reference,
+      amount: paystackTx.amount / 100,
+      paidAt: paystackTx.paid_at,
+      channel: paystackTx.channel,
+      message: 'Payment verified successfully.'
+    });
+  } catch (err: any) {
+    console.error('[PAYSTACK VERIFY ERROR]', err);
+    res.status(500).json({ error: 'Error verifying payment with Paystack gateway' });
+  }
 });
 
 // ==========================================
@@ -552,6 +752,11 @@ app.post('/api/catering', publicWriteLimit, (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Name, phone, and event type are required' });
   }
 
+  const todayStr = new Date().toISOString().split('T')[0];
+  if (eventDate && String(eventDate).trim() < todayStr) {
+    return res.status(400).json({ error: 'Target event date cannot be in the past. Please select today or a future date.' });
+  }
+
   const newEnquiry = storage.addCatering({
     customerName,
     customerEmail: customerEmail || 'enquiry@example.com',
@@ -565,12 +770,71 @@ app.post('/api/catering', publicWriteLimit, (req: Request, res: Response) => {
     notes: notes || ''
   });
 
-  // Notify kitchen admin in background via SMTP
+  // 1. Instantly dispatch Thank You Email with fine card to customer
+  if (newEnquiry.customerEmail && !newEnquiry.customerEmail.includes('example.com')) {
+    sendCateringConsultationThankYouEmail(newEnquiry).catch(err => {
+      console.error('[CATERING THANK YOU EMAIL EXCEPTION]', err);
+    });
+  }
+
+  // 2. Notify kitchen admin in background via SMTP
   sendCateringEnquiryAlert(newEnquiry).catch(err => {
     console.error('[CATERING ALERT EXCEPTION]', err);
   });
 
   res.status(201).json(newEnquiry);
+});
+
+// One-click public confirmation endpoint from quotation email
+app.get('/api/catering/:id/confirm', (req: Request, res: Response) => {
+  const enquiries = storage.getCatering();
+  const lead = enquiries.find(c => String(c.id) === String(req.params.id));
+  if (!lead) {
+    return res.status(404).send(`
+      <!DOCTYPE html><html><body style="font-family: sans-serif; text-align: center; padding: 50px 20px;">
+        <h2 style="color: #c6381e;">Booking Not Found</h2>
+        <p>This catering booking record could not be found or has expired.</p>
+        <a href="https://magreattaste.ng" style="color: #182838; font-weight: bold;">Return to Ma'Great Taste</a>
+      </body></html>
+    `);
+  }
+
+  const updated = storage.updateCateringStatus(String(req.params.id), 'Confirmed');
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Booking Confirmed — Ma'Great Taste</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #fbfaf6; margin: 0; padding: 40px 16px; color: #182838; display: flex; justify-content: center; align-items: center; min-height: 80vh; }
+        .card { background: #ffffff; max-width: 540px; width: 100%; border-radius: 16px; border: 1.5px solid #e2e8f0; padding: 40px 32px; text-align: center; box-shadow: 0 10px 30px rgba(24,40,56,0.08); }
+        .badge { background: #dcfce7; color: #15803d; padding: 6px 16px; border-radius: 20px; font-weight: 700; font-size: 13px; display: inline-block; margin-bottom: 16px; }
+        h1 { margin: 0 0 12px; font-size: 26px; color: #182838; }
+        p { color: #64748b; line-height: 1.6; font-size: 15px; margin: 0 0 24px; }
+        .details-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; text-align: left; margin-bottom: 28px; font-size: 14px; }
+        .btn { display: inline-block; background: #c6381e; color: #ffffff; text-decoration: none; font-weight: 700; padding: 12px 28px; border-radius: 24px; font-size: 14px; margin: 4px; }
+        .btn-wa { background: #25d366; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <div class="badge">🎉 BOOKING OFFICIALLY CONFIRMED</div>
+        <h1>You're All Set, ${lead.customerName}!</h1>
+        <p>Executive Chef Margaret and our kitchen brigade have locked in your date on our catering calendar. We look forward to creating an unforgettable feast for your guests.</p>
+        <div class="details-box">
+          <div style="margin-bottom: 8px;"><b>Event:</b> ${lead.eventType}</div>
+          <div style="margin-bottom: 8px;"><b>Date:</b> ${lead.eventDate}</div>
+          <div style="margin-bottom: 8px;"><b>Guest Count:</b> ${lead.guestCount} guests</div>
+          <div><b>Location:</b> ${lead.location}</div>
+        </div>
+        <a href="https://wa.me/2349058271973" class="btn btn-wa">💬 Message Chef on WhatsApp</a>
+        <a href="https://magreattaste.ng" class="btn">Explore Website</a>
+      </div>
+    </body>
+    </html>
+  `);
 });
 
 app.patch('/api/catering/:id/status', requireAdmin, (req: Request, res: Response) => {
@@ -580,6 +844,130 @@ app.patch('/api/catering/:id/status', requireAdmin, (req: Request, res: Response
     return res.status(404).json({ error: 'Enquiry not found' });
   }
   res.json(updated);
+});
+
+// ==========================================
+// CORPORATE TASTING BOX REQUESTS
+// ==========================================
+app.get('/api/tasting-requests', (req: Request, res: Response) => {
+  const list = storage.getTastingRequests();
+  res.json(list);
+});
+
+app.post('/api/tasting-requests', publicWriteLimit, async (req: Request, res: Response) => {
+  const {
+    companyName,
+    contactPerson,
+    contactPhone,
+    companyEmail,
+    guestCount,
+    mealCount,
+    mealSelections,
+    location,
+    preferredDate,
+    preferredTime,
+    notes
+  } = req.body;
+
+  if (!companyName || !contactPerson || !contactPhone || !companyEmail) {
+    return res.status(400).json({ error: 'Company name, contact person, phone number, and official email are required.' });
+  }
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  if (preferredDate && String(preferredDate).trim() < todayStr) {
+    return res.status(400).json({ error: 'Preferred tasting date cannot be in the past. Please select today or a future date.' });
+  }
+
+  const newRequest = storage.addTastingRequest({
+    companyName: String(companyName).trim(),
+    contactPerson: String(contactPerson).trim(),
+    contactPhone: String(contactPhone).trim(),
+    companyEmail: String(companyEmail).trim(),
+    guestCount: Number(guestCount) || 5,
+    mealCount: Number(mealCount) || 4,
+    mealSelections: mealSelections ? String(mealSelections).trim() : 'Chef selection of bestsellers',
+    location: location ? String(location).trim() : 'Lagos',
+    preferredDate: preferredDate ? String(preferredDate).trim() : 'To be confirmed',
+    preferredTime: preferredTime ? String(preferredTime).trim() : 'Lunchtime',
+    notes: notes ? String(notes).trim() : undefined
+  });
+
+  // Fire emails asynchronously
+  sendTastingRequestThankYouEmail(newRequest).catch(err => {
+    console.error('[TASTING CLIENT EMAIL EXCEPTION]', err);
+  });
+  sendTastingRequestAdminAlert(newRequest).catch(err => {
+    console.error('[TASTING ADMIN ALERT EXCEPTION]', err);
+  });
+
+  res.status(201).json({
+    success: true,
+    message: 'Tasting box request received successfully!',
+    tastingRequest: newRequest
+  });
+});
+
+app.patch('/api/tasting-requests/:id/status', requireAdmin, (req: Request, res: Response) => {
+  const { status, adminNotes } = req.body;
+  const updated = storage.updateTastingRequestStatus(String(req.params.id), status, adminNotes);
+  if (!updated) {
+    return res.status(404).json({ error: 'Tasting request not found' });
+  }
+  res.json(updated);
+});
+
+app.delete('/api/tasting-requests/:id', requireAdmin, (req: Request, res: Response) => {
+  const deleted = storage.deleteTastingRequest(String(req.params.id));
+  if (!deleted) {
+    return res.status(404).json({ error: 'Tasting request not found' });
+  }
+  res.json({ success: true, message: 'Tasting request deleted' });
+});
+
+// ==========================================
+// SIGNATURE DISHES ENDPOINTS
+// ==========================================
+app.get('/api/signature-dishes', (req: Request, res: Response) => {
+  const list = storage.getSignatureDishes();
+  res.json(list);
+});
+
+app.post('/api/signature-dishes', requireAdmin, (req: Request, res: Response) => {
+  const { name, tag, price, description, image, local, alt, order, foodId } = req.body;
+  if (!name || !image) {
+    return res.status(400).json({ error: 'Dish name and image URL are required.' });
+  }
+  const newDish = storage.addSignatureDish({
+    name: String(name).trim(),
+    tag: tag ? String(tag).trim() : "Chef's Pride",
+    price: price ? Number(price) : undefined,
+    description: description ? String(description).trim() : '',
+    image: String(image).trim(),
+    local: local ? String(local).trim() : undefined,
+    alt: alt ? String(alt).trim() : String(name).trim(),
+    order: order ? Number(order) : 99,
+    foodId: foodId ? Number(foodId) : undefined
+  });
+  res.status(201).json(newDish);
+});
+
+app.all('/api/signature-dishes/:id', requireAdmin, (req: Request, res: Response, next: NextFunction) => {
+  if (req.method === 'PUT' || req.method === 'PATCH') {
+    const updated = storage.updateSignatureDish(String(req.params.id), req.body);
+    if (!updated) {
+      return res.status(404).json({ error: 'Signature dish not found' });
+    }
+    return res.json(updated);
+  }
+  next();
+});
+
+app.delete('/api/signature-dishes/:id', requireAdmin, (req: Request, res: Response) => {
+  const deleted = storage.deleteSignatureDish(String(req.params.id));
+  if (!deleted) {
+    return res.status(404).json({ error: 'Signature dish not found' });
+  }
+  res.json({ success: true, message: 'Signature dish removed' });
 });
 
 // ==========================================
@@ -607,20 +995,70 @@ app.post('/api/academy/apply', publicWriteLimit, (req: Request, res: Response) =
     refNumber
   });
 
+  // 1. Dispatch confirmation email to applicant
+  if (newApp.email && newApp.email.includes('@') && !newApp.email.includes('example.com')) {
+    sendAcademyApplicationConfirmationEmail({
+      refNumber: newApp.refNumber,
+      fullName: newApp.fullName,
+      email: newApp.email,
+      phone: newApp.phone,
+      journey: newApp.journey,
+      schedule: newApp.schedule,
+      experience: newApp.experience,
+      notes: newApp.notes
+    }).catch(err => {
+      console.error('[ACADEMY EMAIL ERROR] Failed to send applicant confirmation:', err);
+    });
+  }
+
+  // 2. Dispatch alert to administrator at hello@magreattaste.ng
+  sendAcademyApplicationAdminAlert({
+    refNumber: newApp.refNumber,
+    fullName: newApp.fullName,
+    email: newApp.email,
+    phone: newApp.phone,
+    journey: newApp.journey,
+    schedule: newApp.schedule,
+    experience: newApp.experience,
+    notes: newApp.notes
+  }).catch(err => {
+    console.error('[ACADEMY EMAIL ERROR] Failed to send admin alert:', err);
+  });
+
   res.status(201).json({
     success: true,
-    message: 'Application received successfully',
+    message: 'Application received successfully! Confirmation email dispatched.',
     refNumber: newApp.refNumber,
     application: newApp
   });
 });
 
-app.patch('/api/academy/applications/:id/status', requireAdmin, (req: Request, res: Response) => {
+app.all(['/api/academy/applications/:id/status', '/api/academy/:id/status'], requireAdmin, (req: Request, res: Response) => {
+  if (req.method !== 'PATCH' && req.method !== 'PUT') {
+    return res.status(405).json({ error: 'Method not allowed. Use PATCH or PUT.' });
+  }
   const { status } = req.body;
+  if (!status) {
+    return res.status(400).json({ error: 'Status is required' });
+  }
   const updated = storage.updateAcademyApplicationStatus(String(req.params.id), status);
   if (!updated) {
     return res.status(404).json({ error: 'Application not found' });
   }
+
+  // Dispatch branded status update email to applicant (e.g. Admitted, Contacted, Enrolled)
+  if (updated.email && updated.email.includes('@') && !updated.email.includes('example.com')) {
+    sendAcademyStatusUpdateEmail({
+      refNumber: updated.refNumber,
+      fullName: updated.fullName,
+      email: updated.email,
+      journey: updated.journey,
+      schedule: updated.schedule
+    }, status).catch(err => {
+      console.error('[ACADEMY STATUS EMAIL ERROR] Failed to send update:', err);
+    });
+  }
+
   res.json(updated);
 });
 
@@ -730,6 +1168,71 @@ app.post('/api/mealplans/order', (req: Request, res: Response) => {
   res.status(201).json(order);
 });
 
+app.post(['/api/mealplans/custom-request', '/api/meal-plans/custom-request'], publicWriteLimit, async (req: Request, res: Response) => {
+  const {
+    planType,
+    description,
+    mealOptions,
+    customerName,
+    customerEmail,
+    customerPhone,
+    deliveryArea,
+    preferredStartDate
+  } = req.body;
+
+  if (!planType || !String(planType).trim()) {
+    return res.status(400).json({ error: 'Type of plan is required' });
+  }
+  if (!customerName || !String(customerName).trim()) {
+    return res.status(400).json({ error: 'Customer name is required' });
+  }
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  if (preferredStartDate && String(preferredStartDate).trim() < todayStr) {
+    return res.status(400).json({ error: 'Preferred start date cannot be in the past. Please select today or a future date.' });
+  }
+
+  const cleanMealOptions = Array.isArray(mealOptions) ? mealOptions : [];
+  const refId = `CMP-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  // Save to meal plans storage
+  const newOrder = storage.createMealPlanOrder({
+    planId: 'custom-plan',
+    planName: `Custom Plan: ${String(planType).trim()}`,
+    customerName: String(customerName).trim(),
+    customerEmail: customerEmail ? String(customerEmail).trim() : 'customplan@magreattaste.ng',
+    customerPhone: customerPhone ? String(customerPhone).trim() : '',
+    deliveryAddress: deliveryArea ? String(deliveryArea).trim() : 'Lagos, Nigeria',
+    city: deliveryArea ? String(deliveryArea).trim() : 'Lagos, Nigeria',
+    frequency: 'Weekly',
+    total: 0
+  });
+
+  // Automatically dispatch confirmation email to customer
+  if (customerEmail && String(customerEmail).includes('@') && !String(customerEmail).includes('example.com')) {
+    sendCustomMealPlanConfirmationEmail({
+      refId,
+      customerName: String(customerName).trim(),
+      customerEmail: String(customerEmail).trim(),
+      customerPhone: customerPhone ? String(customerPhone).trim() : undefined,
+      planType: String(planType).trim(),
+      description: description ? String(description).trim() : undefined,
+      preferredStartDate: preferredStartDate ? String(preferredStartDate).trim() : undefined,
+      deliveryArea: deliveryArea ? String(deliveryArea).trim() : undefined,
+      mealOptions: cleanMealOptions
+    }).catch(err => {
+      console.error('[CUSTOM MEAL PLAN EMAIL EXCEPTION]', err);
+    });
+  }
+
+  res.status(201).json({
+    success: true,
+    refId,
+    orderId: newOrder.id,
+    message: 'Custom meal plan request received! Confirmation email sent.'
+  });
+});
+
 // ==========================================
 // 7. MESSAGES & ENQUIRIES
 // ==========================================
@@ -741,31 +1244,48 @@ app.get('/api/messages', requireAdmin, (req: Request, res: Response) => {
 app.post(['/api/messages', '/api/contact'], publicWriteLimit, (req: Request, res: Response) => {
   const { name, email, phone, subject, body, message } = req.body;
   const messageText = body || message;
-  if (!name || !messageText) {
+  if (!name || !String(name).trim() || !messageText || !String(messageText).trim()) {
     return res.status(400).json({ error: 'Name and message body are required' });
   }
 
-  const customerEmail = email || 'user@example.com';
+  const customerEmail = email ? String(email).trim() : 'guest@example.com';
   const newMsg = storage.addMessage({
-    name,
+    name: String(name).trim(),
     email: customerEmail,
-    phone,
-    subject: subject || 'New Website Inquiry',
-    body: messageText
+    phone: phone ? String(phone).trim() : undefined,
+    subject: subject ? String(subject).trim() : 'Website Inquiry',
+    body: String(messageText).trim()
   });
 
-  // 1. Deliver notification to hello@magreattaste.ng
+  // 1. Deliver notification to administrator at hello@magreattaste.ng
   sendContactMessageNotification({
-    name,
+    name: String(name).trim(),
     email: customerEmail,
-    phone,
-    subject: subject || 'New Website Inquiry',
-    body: messageText
+    phone: phone ? String(phone).trim() : undefined,
+    subject: subject ? String(subject).trim() : 'Website Inquiry',
+    body: String(messageText).trim()
   }).catch(err => {
-    console.error('[EMAIL ERROR] Failed to send contact message email alert:', err);
+    console.error('[EMAIL ERROR] Failed to send contact message email alert to admin:', err);
   });
 
-  res.status(201).json(newMsg);
+  // 2. Automatically send confirmation email to customer
+  if (customerEmail && customerEmail.includes('@') && !customerEmail.includes('example.com')) {
+    sendContactConfirmationEmailToCustomer({
+      name: String(name).trim(),
+      email: customerEmail,
+      phone: phone ? String(phone).trim() : undefined,
+      subject: subject ? String(subject).trim() : 'Website Inquiry',
+      body: String(messageText).trim()
+    }).catch(err => {
+      console.error('[EMAIL ERROR] Failed to send contact confirmation email to customer:', err);
+    });
+  }
+
+  res.status(201).json({
+    success: true,
+    message: 'Message sent successfully! A confirmation email has been dispatched to your inbox.',
+    data: newMsg
+  });
 });
 
 app.patch('/api/messages/:id/read', requireAdmin, (req: Request, res: Response) => {
@@ -870,6 +1390,11 @@ app.post('/api/newsletter', publicWriteLimit, (req: Request, res: Response) => {
   // 2. Deliver email notification to hello@magreattaste.ng
   sendNewsletterNotification(cleanEmail).catch(err => {
     console.error('[EMAIL ERROR] Failed to dispatch subscriber email alert:', err);
+  });
+
+  // 3. Deliver welcome email directly to new subscriber
+  sendNewsletterWelcomeEmail(cleanEmail).catch(err => {
+    console.error('[EMAIL ERROR] Failed to dispatch newsletter welcome email:', err);
   });
 
   if (!created) {
@@ -995,6 +1520,13 @@ app.post('/api/saved-meals', publicWriteLimit, (req: Request, res: Response) => 
     items: mealItems
   });
 
+  // Fire branded confirmation email (non-blocking)
+  sendSavedMealConfirmationEmail({
+    customerName: customerName || 'Food Lover',
+    customerEmail,
+    items: mealItems
+  }).catch(err => console.error('[SAVED MEAL EMAIL] Fire error:', err.message));
+
   res.status(201).json({
     message: `Your saved meals list has been updated.`,
     ...result
@@ -1020,30 +1552,63 @@ app.get('/api/customer/saved-meals', (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/saved-meals/:id/remind', requireAdmin, (req: Request, res: Response) => {
+app.post('/api/saved-meals/:id/remind', requireAdmin, async (req: Request, res: Response) => {
   const result = storage.sendSavedMealReminder(String(req.params.id));
-  if (!result.success) {
+  if (!result.success || !result.record) {
     return res.status(404).json({ error: result.message });
   }
-  res.json(result);
+
+  // Dispatch branded dinner reminder email live to customer
+  let emailSent = false;
+  try {
+    const emailRes = await sendSavedMealReminderEmail({
+      customerName: result.record.customerName,
+      customerEmail: result.record.customerEmail,
+      items: result.record.items,
+      customMessage: result.reminderText
+    });
+    emailSent = emailRes.success;
+  } catch (err: any) {
+    console.error('[SAVED MEAL REMINDER EMAIL EXCEPTION]', err);
+  }
+
+  res.json({
+    ...result,
+    emailDispatched: emailSent,
+    message: emailSent
+      ? `Branded dinner reminder dispatched to ${result.record.customerEmail}!`
+      : `Reminder recorded for ${result.record.customerEmail}.`
+  });
 });
 
-app.post('/api/saved-meals/bulk-remind', requireAdmin, (req: Request, res: Response) => {
+app.post('/api/saved-meals/bulk-remind', requireAdmin, async (req: Request, res: Response) => {
   const { ids } = req.body;
   const list = storage.getSavedMeals();
   let dispatched = 0;
+  let emailDispatchedCount = 0;
   const results: any[] = [];
 
-  list.forEach(item => {
+  for (const item of list) {
     if (!ids || ids.length === 0 || ids.includes(item.id)) {
-      if (item.reminderStatus !== 'Unsubscribed') {
+      if (item.reminderStatus !== 'Unsubscribed' && item.customerEmail) {
         item.lastReminderSentAt = new Date().toISOString();
         item.reminderCount = (item.reminderCount || 0) + 1;
         dispatched++;
         results.push({ id: item.id, name: item.customerName, email: item.customerEmail });
+
+        // Dispatch email to customer (non-blocking)
+        sendSavedMealReminderEmail({
+          customerName: item.customerName,
+          customerEmail: item.customerEmail,
+          items: item.items
+        }).then(res => {
+          if (res.success) emailDispatchedCount++;
+        }).catch(err => {
+          console.error(`[BULK REMINDER EMAIL EXCEPTION for ${item.customerEmail}]`, err);
+        });
       }
     }
-  });
+  }
 
   storage.saveSavedMeals(list);
   res.json({
@@ -1068,13 +1633,20 @@ app.post('/api/catering/:id/quote', requireAdmin, async (req: Request, res: Resp
   const { quoteAmount, menuNotes } = req.body;
   const enquiries = storage.getCatering();
   const lead = enquiries.find(c => String(c.id) === String(req.params.id));
-  const updated = storage.updateCateringStatus(String(req.params.id), 'Quote sent');
+
+  // Automatically transition status to 'Quote sent' and save quote details
+  const updated = storage.updateCateringStatus(String(req.params.id), 'Quote sent', {
+    quoteAmount: Number(quoteAmount) || 0,
+    menuNotes: menuNotes || ''
+  });
 
   let emailDispatched = false;
   let emailMessage = '';
-  if (lead && lead.customerEmail) {
+  const targetLead = updated || lead;
+
+  if (targetLead && targetLead.customerEmail) {
     try {
-      const emailResult = await sendCateringQuotationEmail(lead, Number(quoteAmount) || 0, menuNotes || '');
+      const emailResult = await sendCateringQuotationEmail(targetLead, Number(quoteAmount) || 0, menuNotes || '');
       emailDispatched = emailResult.success;
       emailMessage = emailResult.message;
     } catch (err: any) {
@@ -1085,8 +1657,8 @@ app.post('/api/catering/:id/quote', requireAdmin, async (req: Request, res: Resp
   res.json({
     success: true,
     message: emailDispatched 
-      ? `Quotation of ₦${(Number(quoteAmount) || 0).toLocaleString()} emailed to ${lead?.customerEmail}!`
-      : `Quotation saved${emailMessage ? ' (' + emailMessage + ')' : ''}`,
+      ? `Quotation of ₦${(Number(quoteAmount) || 0).toLocaleString()} emailed to ${targetLead?.customerEmail}! Status automatically switched to "Quote sent".`
+      : `Quotation saved and status updated to "Quote sent"${emailMessage ? ' (' + emailMessage + ')' : ''}`,
     lead: updated,
     emailDispatched,
     menuNotes
@@ -1131,6 +1703,47 @@ app.put('/api/settings', requireAdmin, (req: Request, res: Response) => {
 app.patch('/api/settings', requireAdmin, (req: Request, res: Response) => {
   const updated = storage.updateSettings(req.body);
   res.json({ success: true, message: 'Store settings updated successfully', settings: updated });
+});
+
+// Catering service prices – public read (frontend uses to build estimator) / admin write
+app.get('/api/catering-service-prices', (req: Request, res: Response) => {
+  const settings = storage.getSettings();
+  const prices = settings.cateringServicePrices || [
+    { id: 'buffet', label: 'Grand Buffet Feast', pricePerGuest: 8500 },
+    { id: 'plated', label: 'Plated VIP 3-Course Banquet', pricePerGuest: 14000 },
+    { id: 'cocktail', label: 'Cocktail & Grill Bar', pricePerGuest: 5500 }
+  ];
+  res.json(prices);
+});
+
+app.all('/api/catering-service-prices', (req: Request, res: Response, next: NextFunction) => {
+  if (req.method === 'GET') {
+    const settings = storage.getSettings();
+    return res.json(settings.cateringServicePrices || []);
+  }
+  if (req.method === 'PUT' || req.method === 'POST') {
+    return requireAdmin(req, res, () => {
+      const prices = req.body;
+      if (!Array.isArray(prices)) {
+        return res.status(400).json({ error: 'Prices must be an array' });
+      }
+      storage.updateSettings({ cateringServicePrices: prices });
+      res.json({ success: true, message: 'Catering service prices updated', prices });
+    });
+  }
+  next();
+});
+
+app.patch('/api/catering-service-prices/:id', requireAdmin, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { pricePerGuest, label, description } = req.body;
+  const settings = storage.getSettings();
+  const prices = settings.cateringServicePrices || [];
+  const idx = prices.findIndex(p => p.id === id);
+  if (idx === -1) return res.status(404).json({ error: 'Service not found' });
+  prices[idx] = { ...prices[idx], ...(pricePerGuest !== undefined && { pricePerGuest: Number(pricePerGuest) }), ...(label && { label }), ...(description && { description }) };
+  storage.updateSettings({ cateringServicePrices: prices });
+  res.json({ success: true, price: prices[idx] });
 });
 
 // ==========================================
@@ -1303,8 +1916,14 @@ app.post('/api/admin/team/invite', requireSuperAdmin, (req: Request, res: Respon
       role,
       invitedBy: inviter?.name || 'Chef Margaret'
     });
+
+    // Dispatch branded invitation email with login credentials
+    sendAdminInviteEmail(created, password).catch(err => {
+      console.error('[ADMIN INVITE EMAIL ERROR] Failed to send invite email:', err);
+    });
+
     res.status(201).json({
-      message: `Admin ${name} (${role === 'super_admin' ? 'Super Admin' : 'Admin Staff'}) invited successfully.`,
+      message: `Admin ${name} (${role === 'super_admin' ? 'Super Admin' : 'Admin Staff'}) invited successfully! Invitation email dispatched to ${email}.`,
       user: {
         id: created.id,
         name: created.name,
