@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "id": "disc-margaret-5",
+    "customerName": "Ma'Great Community",
+    "type": "percent",
+    "value": 5,
+    "code": "MARGARET-5",
+    "appliesTo": "all",
+    "notes": "5% welcome discount for all food orders",
+    "active": true,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  {
+    "id": "disc-vip-10",
+    "customerName": "VIP Gourmands",
+    "type": "percent",
+    "value": 10,
+    "code": "VIP10",
+    "appliesTo": "all",
+    "notes": "10% VIP appreciation discount",
+    "active": true,
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  }
+]

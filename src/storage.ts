@@ -69,6 +69,24 @@ export async function initStorage(): Promise<void> {
     const { rows } = await pool.query('SELECT key, data FROM kv_store');
     for (const row of rows) cache.set(row.key, row.data);
     console.log(`[DB] Connected to PostgreSQL. Loaded ${rows.length} collection(s).`);
+
+    // Clean up any legacy automated newsletter subscription records mistakenly kept in messages
+    if (cache.has('messages.json')) {
+      const rawMsgs = cache.get('messages.json') as CustomerMessage[];
+      if (Array.isArray(rawMsgs)) {
+        const filtered = rawMsgs.filter(m =>
+          m.name !== 'Newsletter Subscriber' &&
+          !m.subject?.toLowerCase().includes('newsletter') &&
+          !m.body?.toLowerCase().includes('customer subscribed') &&
+          !m.body?.toLowerCase().includes('website newsletter input')
+        );
+        if (filtered.length !== rawMsgs.length) {
+          cache.set('messages.json', filtered);
+          persist('messages.json', filtered);
+          console.log(`[DB] Cleaned up ${rawMsgs.length - filtered.length} legacy newsletter entries from messages.`);
+        }
+      }
+    }
   } catch (err: any) {
     console.warn(`[DB] PostgreSQL connection notice (${err.message}) — using local JSON files.`);
   }
@@ -432,6 +450,31 @@ const defaultSettings: StoreSettings = {
   updatedAt: new Date().toISOString()
 };
 
+const defaultDiscounts: CustomerDiscount[] = [
+  {
+    id: 'disc-margaret-5',
+    customerName: "Ma'Great Community",
+    type: 'percent',
+    value: 5,
+    code: 'MARGARET-5',
+    appliesTo: 'all',
+    notes: '5% welcome discount for all food orders',
+    active: true,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'disc-vip-10',
+    customerName: 'VIP Gourmands',
+    type: 'percent',
+    value: 10,
+    code: 'VIP10',
+    appliesTo: 'all',
+    notes: '10% VIP appreciation discount',
+    active: true,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  }
+];
+
 export const storage = {
   init: initStorage,
   // Foods
@@ -678,7 +721,15 @@ export const storage = {
   },
   getCustomerMessages(email: string): CustomerMessage[] {
     const normalized = email.toLowerCase().trim();
-    return this.getMessages().filter(m => m.email?.toLowerCase().trim() === normalized);
+    return this.getMessages().filter(m => {
+      if (m.email?.toLowerCase().trim() !== normalized) return false;
+      const isNewsletter =
+        m.name === 'Newsletter Subscriber' ||
+        m.subject?.toLowerCase().includes('newsletter') ||
+        m.body?.toLowerCase().includes('customer subscribed') ||
+        m.body?.toLowerCase().includes('website newsletter input');
+      return !isNewsletter;
+    });
   },
 
   // Newsletter
@@ -908,7 +959,8 @@ export const storage = {
   // CUSTOMER & COMPANY DISCOUNTS
   // ==========================================
   getDiscounts(): CustomerDiscount[] {
-    return readJsonFile<CustomerDiscount[]>('discounts.json', []);
+    const list = readJsonFile<CustomerDiscount[]>('discounts.json', defaultDiscounts);
+    return list && list.length > 0 ? list : defaultDiscounts;
   },
   saveDiscounts(list: CustomerDiscount[]): void {
     writeJsonFile('discounts.json', list);

@@ -1923,6 +1923,11 @@ export async function sendCustomerOrderConfirmationEmail(order: Order): Promise<
                 <td style="padding: 8px 0; color: #64748b; font-size: 13px;">Lagos Delivery Fee:</td>
                 <td style="padding: 8px 0; text-align: right; color: #182838; font-size: 13px; font-weight: 600;">₦${order.deliveryFee.toLocaleString()}</td>
               </tr>
+              ${order.discountAmount ? `
+              <tr>
+                <td style="padding: 8px 0; color: #16a34a; font-size: 13px;">Promo Discount (${order.discountCode || 'Code'}):</td>
+                <td style="padding: 8px 0; text-align: right; color: #16a34a; font-size: 13px; font-weight: 600;">-₦${order.discountAmount.toLocaleString()}</td>
+              </tr>` : ''}
               <tr style="border-top: 2px solid #182838;">
                 <td style="padding: 12px 0; font-size: 15px; font-weight: 800; color: #182838;">Total Paid (Paystack):</td>
                 <td style="padding: 12px 0; text-align: right; font-size: 17px; font-weight: 800; color: #c6381e;">₦${order.total.toLocaleString()}</td>

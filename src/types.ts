@@ -8,10 +8,11 @@ export interface FoodItem {
   image: string;
   rating: string;
   time: string;
-  status: 'Available' | 'Sold out';
+  status: 'Available' | 'Sold out' | 'Hidden';
   ordersCount: number;
   createdAt: string;
   availableLocations?: string[]; // Array of delivery location IDs (places in Lagos). If empty/undefined, dish is available everywhere in Lagos.
+  hidden?: boolean; // Whether the dish is hidden from the public website
 }
 
 export interface OrderItem {
@@ -37,6 +38,8 @@ export interface Order {
   items: OrderItem[];
   subtotal: number;
   deliveryFee: number;
+  discountCode?: string;
+  discountAmount?: number;
   total: number;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;

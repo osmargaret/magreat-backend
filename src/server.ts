@@ -5,6 +5,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import https from 'node:https';
 import dns from 'node:dns';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { v2 as cloudinary } from 'cloudinary';
@@ -39,6 +40,7 @@ import {
 } from './email.js';
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || 'sk_test_30c5651e1fa89e38d79ab5768016cda82caecdea';
+const PAYSTACK_PUBLIC_KEY = process.env.PAYSTACK_PUBLIC_KEY || PAYSTACK_SECRET_KEY.replace('sk_', 'pk_');
 
 // ==========================================
 // STARTUP: Validate required environment variables
@@ -279,8 +281,15 @@ app.get('/api/menu', (req: Request, res: Response) => {
   const category = req.query.category as string | undefined;
   const search = req.query.search as string | undefined;
   const location = req.query.location as string | undefined;
+  const includeHidden = req.query.all === 'true' || req.query.includeHidden === 'true';
 
   let filtered = foods;
+
+  // Public menu: automatically exclude any meals marked as Hidden so they are not visible on public order page
+  if (!includeHidden) {
+    filtered = filtered.filter(f => f.status !== 'Hidden' && !f.hidden);
+  }
+
   if (category && category !== 'All meals' && category !== 'All') {
     filtered = filtered.filter(f => f.category.toLowerCase() === category.toLowerCase());
   }
@@ -455,6 +464,8 @@ app.post('/api/orders', publicWriteLimit, (req: Request, res: Response) => {
     items,
     subtotal,
     deliveryFee,
+    discountCode,
+    discountAmount,
     total,
     paymentMethod,
     paymentStatus,
@@ -475,7 +486,9 @@ app.post('/api/orders', publicWriteLimit, (req: Request, res: Response) => {
     items,
     subtotal: Number(subtotal) || 0,
     deliveryFee: Number(deliveryFee) || 0,
-    total: Number(total) || (Number(subtotal) || 0) + (Number(deliveryFee) || 0),
+    discountCode: discountCode ? String(discountCode) : undefined,
+    discountAmount: Number(discountAmount) || 0,
+    total: Number(total) || (Number(subtotal) || 0) + (Number(deliveryFee) || 0) - (Number(discountAmount) || 0),
     paymentMethod: paymentMethod || 'paystack',
     paymentStatus: paymentStatus || 'paid',
     paymentReference: paymentReference || `REF-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -528,7 +541,21 @@ app.patch('/api/orders/:id/status', requireAdmin, (req: Request, res: Response) 
 // ==========================================
 app.post('/api/payments/paystack/initialize', async (req: Request, res: Response) => {
   try {
-    const { email, amount, customerName, customerPhone, deliveryAddress, items } = req.body;
+    const { 
+      email, 
+      amount, 
+      customerName, 
+      customerPhone, 
+      deliveryAddress, 
+      city, 
+      deliveryNotes, 
+      items, 
+      subtotal, 
+      deliveryFee, 
+      discountCode, 
+      discountAmount 
+    } = req.body;
+
     if (!email || !amount || Number(amount) <= 0) {
       return res.status(400).json({ error: 'Valid customer email and positive order amount are required' });
     }
@@ -552,10 +579,18 @@ app.post('/api/payments/paystack/initialize', async (req: Request, res: Response
           customerName,
           customerPhone,
           deliveryAddress,
+          city,
+          deliveryNotes,
+          items,
+          subtotal,
+          deliveryFee,
+          discountCode,
+          discountAmount,
           itemCount: Array.isArray(items) ? items.length : 0,
           custom_fields: [
             { display_name: 'Customer Name', variable_name: 'customer_name', value: customerName },
-            { display_name: 'Delivery Address', variable_name: 'delivery_address', value: deliveryAddress }
+            { display_name: 'Delivery Address', variable_name: 'delivery_address', value: deliveryAddress },
+            { display_name: 'Phone', variable_name: 'phone', value: customerPhone }
           ]
         }
       })
@@ -572,7 +607,8 @@ app.post('/api/payments/paystack/initialize', async (req: Request, res: Response
       success: true,
       authorization_url: data.data.authorization_url,
       access_code: data.data.access_code,
-      reference: data.data.reference
+      reference: data.data.reference,
+      publicKey: PAYSTACK_PUBLIC_KEY
     });
   } catch (err: any) {
     console.error('[PAYSTACK INITIALIZE ERROR]', err);
@@ -607,6 +643,17 @@ app.post(['/api/payments/paystack/verify', '/api/payments/verify'], async (req: 
 
     const paystackTx = verifyData.data;
 
+    // Check if order already recorded for this reference to prevent duplicate orders
+    const existingOrder = storage.getOrders().find(o => o.paymentReference === reference);
+    if (existingOrder) {
+      return res.json({
+        success: true,
+        verified: true,
+        order: existingOrder,
+        message: 'Payment already verified and order confirmed.'
+      });
+    }
+
     // 2. If orderPayload is provided, create the confirmed order
     if (orderPayload && orderPayload.items && orderPayload.items.length > 0) {
       const newOrder = storage.createOrder({
@@ -619,8 +666,10 @@ app.post(['/api/payments/paystack/verify', '/api/payments/verify'], async (req: 
         items: orderPayload.items,
         subtotal: Number(orderPayload.subtotal) || 0,
         deliveryFee: Number(orderPayload.deliveryFee) || 0,
+        discountCode: orderPayload.discountCode ? String(orderPayload.discountCode) : undefined,
+        discountAmount: Number(orderPayload.discountAmount) || 0,
         total: Number(orderPayload.total) || (paystackTx.amount / 100),
-        paymentMethod: 'paystack',
+        paymentMethod: paystackTx.channel || 'paystack',
         paymentStatus: 'paid',
         paymentReference: reference,
         estimatedDeliveryTime: '25–40 mins'
@@ -656,6 +705,80 @@ app.post(['/api/payments/paystack/verify', '/api/payments/verify'], async (req: 
   } catch (err: any) {
     console.error('[PAYSTACK VERIFY ERROR]', err);
     res.status(500).json({ error: 'Error verifying payment with Paystack gateway' });
+  }
+});
+
+// Paystack Real-Time Webhook
+app.post('/api/payments/paystack/webhook', (req: Request, res: Response) => {
+  try {
+    const signature = req.headers['x-paystack-signature'];
+    if (signature) {
+      const hash = crypto.createHmac('sha512', PAYSTACK_SECRET_KEY).update(JSON.stringify(req.body)).digest('hex');
+      if (signature !== hash) {
+        console.warn('[PAYSTACK WEBHOOK] Signature mismatch — ignoring unauthorized payload');
+        return res.sendStatus(400);
+      }
+    }
+
+    const event = req.body?.event;
+    const data = req.body?.data;
+
+    if (event === 'charge.success' && data) {
+      const reference = data.reference;
+      console.log(`[PAYSTACK WEBHOOK] charge.success confirmed: ${reference}, amount: ₦${data.amount / 100}, channel: ${data.channel}`);
+
+      const list = storage.getOrders();
+      const existing = list.find(o => o.paymentReference === reference);
+
+      if (existing) {
+        if (existing.paymentStatus !== 'paid') {
+          existing.paymentStatus = 'paid';
+          existing.paymentMethod = data.channel || 'paystack';
+          storage.saveOrders(list);
+
+          sendCustomerOrderConfirmationEmail(existing).catch(err => {
+            console.error('[WEBHOOK EMAIL ERROR - CUSTOMER]', err);
+          });
+          sendAdminOrderNotificationEmail(existing).catch(err => {
+            console.error('[WEBHOOK EMAIL ERROR - ADMIN]', err);
+          });
+        }
+      } else {
+        // Automatic creation from Paystack metadata if customer paid via Bank Transfer or closed browser
+        const meta = data.metadata || {};
+        const newOrder = storage.createOrder({
+          customerName: meta.customerName || data.customer?.first_name || 'Customer',
+          customerEmail: data.customer?.email || 'customer@magreattaste.ng',
+          customerPhone: meta.customerPhone || data.customer?.phone || '',
+          deliveryAddress: meta.deliveryAddress || 'Central Kitchen Dispatch',
+          city: meta.city || 'Lagos, Nigeria',
+          deliveryNotes: meta.deliveryNotes || '',
+          items: Array.isArray(meta.items) && meta.items.length > 0 ? meta.items : [
+            { name: `Kitchen Feast Order (${reference})`, price: data.amount / 100, quantity: 1 }
+          ],
+          subtotal: Number(meta.subtotal) || (data.amount / 100),
+          deliveryFee: Number(meta.deliveryFee) || 0,
+          discountCode: meta.discountCode ? String(meta.discountCode) : undefined,
+          discountAmount: Number(meta.discountAmount) || 0,
+          total: data.amount / 100,
+          paymentMethod: data.channel || 'paystack',
+          paymentStatus: 'paid',
+          paymentReference: reference,
+          estimatedDeliveryTime: '25–40 mins'
+        });
+
+        sendCustomerOrderConfirmationEmail(newOrder).catch(err => {
+          console.error('[WEBHOOK EMAIL ERROR - CUSTOMER]', err);
+        });
+        sendAdminOrderNotificationEmail(newOrder).catch(err => {
+          console.error('[WEBHOOK EMAIL ERROR - ADMIN]', err);
+        });
+      }
+    }
+    res.sendStatus(200);
+  } catch (err: any) {
+    console.error('[PAYSTACK WEBHOOK ERROR]', err);
+    res.sendStatus(200);
   }
 });
 
@@ -1378,16 +1501,7 @@ app.post('/api/newsletter', publicWriteLimit, (req: Request, res: Response) => {
   const cleanEmail = email.toLowerCase().trim();
   const created = storage.addSubscriber(cleanEmail);
 
-  // 1. Deliver to Admin Dashboard Messages Inbox so admin sees it in real-time
-  storage.addMessage({
-    name: 'Newsletter Subscriber',
-    email: cleanEmail,
-    phone: '',
-    subject: `📬 Newsletter Subscription: ${cleanEmail}`,
-    body: `Customer subscribed to Ma'Great Taste seasonal menus, chef updates, and promotions via website newsletter input.\nSubscriber Email: ${cleanEmail}`
-  });
-
-  // 2. Deliver email notification to hello@magreattaste.ng
+  // Deliver email notification to hello@magreattaste.ng
   sendNewsletterNotification(cleanEmail).catch(err => {
     console.error('[EMAIL ERROR] Failed to dispatch subscriber email alert:', err);
   });
