@@ -185,6 +185,15 @@ const publicWriteLimit = rateLimit({
   message: { error: 'Too many requests — please try again in a few minutes.' }
 });
 
+// Relaxed rate limiter for favoriting / saving meals so active browsing customers are never blocked
+const savedMealsLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests — please try again in a few minutes.' }
+});
+
 // --- Root & Health Check ---
 app.get('/', (req: Request, res: Response) => {
   res.json({
@@ -213,6 +222,7 @@ app.use((req, res, next) => {
     req.url.startsWith('/mealplans') ||
     req.url.startsWith('/meal-plans') ||
     req.url.startsWith('/saved-meals') ||
+    req.url.startsWith('/customer') ||
     req.url.startsWith('/discounts') ||
     req.url.startsWith('/customers') ||
     req.url.startsWith('/messages') ||
@@ -1620,8 +1630,8 @@ app.get('/api/saved-meals', requireAdmin, (req: Request, res: Response) => {
   res.json(savedMeals);
 });
 
-app.post('/api/saved-meals', publicWriteLimit, (req: Request, res: Response) => {
-  const { customerName, customerEmail, customerPhone, items, savedMeals } = req.body;
+app.post('/api/saved-meals', savedMealsLimit, async (req: Request, res: Response) => {
+  const { customerName, customerEmail, customerPhone, items, savedMeals, sendEmail } = req.body;
   const mealItems = items || savedMeals;
   if (!customerEmail || !mealItems || !Array.isArray(mealItems)) {
     return res.status(400).json({ error: 'Customer email and saved meal items are required' });
@@ -1634,17 +1644,68 @@ app.post('/api/saved-meals', publicWriteLimit, (req: Request, res: Response) => 
     items: mealItems
   });
 
-  // Fire branded confirmation email (non-blocking)
-  sendSavedMealConfirmationEmail({
-    customerName: customerName || 'Food Lover',
-    customerEmail,
-    items: mealItems
-  }).catch(err => console.error('[SAVED MEAL EMAIL] Fire error:', err.message));
+  // Dispatch branded confirmation email if requested (default: true when mealItems exist, unless explicitly false)
+  let emailDispatched = false;
+  if (sendEmail !== false && mealItems.length > 0) {
+    try {
+      emailDispatched = await sendSavedMealConfirmationEmail({
+        customerName: customerName || 'Food Lover',
+        customerEmail,
+        items: mealItems
+      });
+    } catch (err: any) {
+      console.error('[SAVED MEAL EMAIL] Fire error:', err?.message || err);
+    }
+  }
 
   res.status(201).json({
-    message: `Your saved meals list has been updated.`,
+    message: emailDispatched
+      ? `Your saved meals list has been saved and emailed to ${customerEmail}.`
+      : `Your saved meals list has been updated.`,
+    emailSent: emailDispatched,
     ...result
   });
+});
+
+// Dedicated on-demand endpoint to email saved meals to a customer
+app.post('/api/customer/saved-meals/email', savedMealsLimit, async (req: Request, res: Response) => {
+  const { customerName, customerEmail, items } = req.body;
+  const email = String(customerEmail || '').trim().toLowerCase();
+  if (!email) {
+    return res.status(400).json({ error: 'Customer email is required to send saved meals' });
+  }
+
+  let mealItems = Array.isArray(items) && items.length > 0 ? items : null;
+  let clientName = customerName || 'Valued Food Lover';
+
+  if (!mealItems) {
+    const allSaved = storage.getSavedMeals();
+    const userRecord = allSaved.find(s => s.customerEmail.toLowerCase().trim() === email);
+    if (userRecord && Array.isArray(userRecord.items) && userRecord.items.length > 0) {
+      mealItems = userRecord.items;
+      if (userRecord.customerName) clientName = userRecord.customerName;
+    }
+  }
+
+  if (!mealItems || mealItems.length === 0) {
+    return res.status(400).json({ error: 'No saved meals found to send. Please save some dishes first!' });
+  }
+
+  try {
+    const sent = await sendSavedMealConfirmationEmail({
+      customerName: clientName,
+      customerEmail: email,
+      items: mealItems
+    });
+    return res.json({
+      success: true,
+      emailSent: sent,
+      message: `Your ${mealItems.length} saved meal${mealItems.length === 1 ? '' : 's'} have been emailed to ${email}.`
+    });
+  } catch (err: any) {
+    console.error('[SAVED MEAL EMAIL DISPATCH ERROR]', err?.message || err);
+    return res.status(500).json({ error: 'Failed to dispatch email. Please check your network connection.' });
+  }
 });
 
 // Customer Dashboard: Fetch Saved Meals for Logged-in Customer
