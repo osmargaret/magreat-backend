@@ -201,6 +201,7 @@ export interface StoreSettings {
   deliveryFee?: number;
   openingHours?: string;
   cateringServicePrices?: CateringServicePrice[];
+  marqueeMessages?: string[];   // Scrolling announcement bar messages
   updatedAt?: string;
 }
 

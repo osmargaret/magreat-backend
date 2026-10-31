@@ -447,6 +447,13 @@ const defaultSettings: StoreSettings = {
   deliveryFee: 2000,
   openingHours: '8:00 AM – 10:00 PM Daily',
   cateringServicePrices: defaultCateringServicePrices,
+  marqueeMessages: [
+    '🎉 Order before 12pm and get same-day delivery — Lagos only',
+    '🍽️ Catering bookings now open for December events — book early!',
+    '✨ New freezer meals just added — stock up for the week',
+    '📞 Need help? Call or WhatsApp us: 09058271973',
+    '🎓 Culinary School intakes open — limited spots available',
+  ],
   updatedAt: new Date().toISOString()
 };
 
